@@ -8,6 +8,7 @@ This package provides adapters for using [Model Context Protocol (MCP)](https://
 ## Features
 
 - Connect to MCP servers using stdio or SSE transports
+- **Connect to MCP servers programmatically** using Server instances
 - Connect to multiple MCP servers simultaneously
 - Configure connections using a JSON configuration file
 - **Support for custom headers in SSE connections** (great for authentication!)
@@ -37,7 +38,7 @@ npm install eventsource
 
 ### Connecting to an MCP Server
 
-You can connect to an MCP server using either stdio or SSE transport:
+You can connect to an MCP server using either stdio, SSE transport, or programmatically:
 
 ```typescript
 import { MultiServerMCPClient } from 'langchainjs-mcp-adapters';
@@ -68,6 +69,45 @@ await client.connectToServerViaSSE(
   },
   true // Use Node.js EventSource (requires eventsource package)
 );
+
+// Connect to a server programmatically
+import { Server } from '@modelcontextprotocol/sdk/server/index.js';
+
+// Create a server instance
+const server = new Server({
+  name: 'example-server',
+  version: '1.0.0',
+});
+
+// Register tools on the server
+server.registerTool({
+  name: 'greet',
+  description: 'Greet a person by name',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      name: {
+        type: 'string',
+        description: 'The name of the person to greet',
+      },
+    },
+    required: ['name'],
+  },
+  handler: async params => {
+    const { name } = params;
+    return {
+      content: [
+        {
+          type: 'text',
+          text: `Hello, ${name}! Nice to meet you.`,
+        },
+      ],
+    };
+  },
+});
+
+// Connect to the server programmatically
+await client.connectToServer('example-server', server);
 
 // Get all tools from all connected servers
 const tools = client.getTools();
@@ -162,6 +202,8 @@ Example `mcp.json` file:
   }
 }
 ```
+
+Note: Programmatic connections (using `server` instances) cannot be defined in the JSON configuration file as they require actual JavaScript objects. Use the `connectToServer` method or the constructor with a JavaScript object for programmatic connections.
 
 The client will attempt to connect to all servers defined in the configuration file. If a server is not available, it will log an error and continue with the available servers. If no servers are available, it will throw an error.
 

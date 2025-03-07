@@ -6,6 +6,8 @@ import { loadMcpTools } from './tools.js';
 import * as fs from 'fs';
 import * as path from 'path';
 import logger from './logger.js';
+import { Server } from '@modelcontextprotocol/sdk/server/index.js';
+import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 
 type StdioConnection = {
   transport: 'stdio';
@@ -23,7 +25,12 @@ type SSEConnection = {
   useNodeEventSource?: boolean;
 };
 
-type Connection = StdioConnection | SSEConnection;
+type ProgrammaticConnection = {
+  transport: 'programmatic';
+  server: Server;
+};
+
+type Connection = StdioConnection | SSEConnection | ProgrammaticConnection;
 
 type MCPConfig = {
   servers: Record<string, Connection>;
@@ -49,122 +56,95 @@ export class MultiServerMCPClient {
       const processedConnections: Record<string, Connection> = {};
 
       for (const [serverName, config] of Object.entries(connections)) {
-        if (typeof config !== 'object' || config === null) {
-          logger.warn(`Invalid configuration for server "${serverName}". Skipping.`);
-          continue;
-        }
-
-        // If transport is explicitly set
-        if (config.transport) {
-          if (config.transport === 'stdio') {
-            if (!config.command || !Array.isArray(config.args)) {
+        if (typeof config === 'object' && config !== null) {
+          if ('transport' in config && config.transport === 'sse') {
+            // SSE connection
+            if (!('url' in config) || typeof config.url !== 'string') {
               logger.warn(
-                `Server "${serverName}" is missing required properties for stdio transport. Skipping.`
+                `Invalid SSE connection for server "${serverName}": missing or invalid URL`
               );
               continue;
             }
 
-            const stdioConfig: StdioConnection = {
+            const connection: SSEConnection = {
+              transport: 'sse',
+              url: config.url,
+            };
+
+            if (
+              'headers' in config &&
+              typeof config.headers === 'object' &&
+              config.headers !== null
+            ) {
+              connection.headers = config.headers as Record<string, string>;
+            }
+
+            if ('useNodeEventSource' in config && typeof config.useNodeEventSource === 'boolean') {
+              connection.useNodeEventSource = config.useNodeEventSource;
+            }
+
+            processedConnections[serverName] = connection;
+          } else if ('transport' in config && config.transport === 'programmatic') {
+            // Programmatic connection
+            if (
+              !('server' in config) ||
+              typeof config.server !== 'object' ||
+              config.server === null
+            ) {
+              logger.warn(
+                `Invalid programmatic connection for server "${serverName}": missing or invalid server instance`
+              );
+              continue;
+            }
+
+            const connection: ProgrammaticConnection = {
+              transport: 'programmatic',
+              server: config.server,
+            };
+
+            processedConnections[serverName] = connection;
+          } else {
+            // Default to stdio connection
+            if (!('command' in config) || typeof config.command !== 'string') {
+              logger.warn(
+                `Invalid stdio connection for server "${serverName}": missing or invalid command`
+              );
+              continue;
+            }
+
+            if (!('args' in config) || !Array.isArray(config.args)) {
+              logger.warn(
+                `Invalid stdio connection for server "${serverName}": missing or invalid args`
+              );
+              continue;
+            }
+
+            const connection: StdioConnection = {
               transport: 'stdio',
               command: config.command,
               args: config.args,
             };
 
-            // Add optional properties if they exist
-            if (config.env && typeof config.env === 'object') {
-              stdioConfig.env = config.env;
+            if ('env' in config && typeof config.env === 'object' && config.env !== null) {
+              connection.env = config.env as Record<string, string>;
             }
 
-            if (typeof config.encoding === 'string') {
-              stdioConfig.encoding = config.encoding;
+            if ('encoding' in config && typeof config.encoding === 'string') {
+              connection.encoding = config.encoding;
             }
 
-            if (['strict', 'ignore', 'replace'].includes(config.encodingErrorHandler)) {
-              stdioConfig.encodingErrorHandler = config.encodingErrorHandler as
+            if (
+              'encodingErrorHandler' in config &&
+              typeof config.encodingErrorHandler === 'string' &&
+              ['strict', 'ignore', 'replace'].includes(config.encodingErrorHandler)
+            ) {
+              connection.encodingErrorHandler = config.encodingErrorHandler as
                 | 'strict'
                 | 'ignore'
                 | 'replace';
             }
 
-            processedConnections[serverName] = stdioConfig;
-          } else if (config.transport === 'sse') {
-            if (!config.url) {
-              logger.warn(
-                `Server "${serverName}" is missing required URL for SSE transport. Skipping.`
-              );
-              continue;
-            }
-
-            const sseConfig: SSEConnection = {
-              transport: 'sse',
-              url: config.url,
-            };
-
-            // Add optional headers if they exist
-            if (config.headers && typeof config.headers === 'object') {
-              sseConfig.headers = config.headers;
-            }
-
-            // Add optional useNodeEventSource flag if it exists
-            if (typeof config.useNodeEventSource === 'boolean') {
-              sseConfig.useNodeEventSource = config.useNodeEventSource;
-            }
-
-            processedConnections[serverName] = sseConfig;
-          } else {
-            logger.warn(
-              `Server "${serverName}" has unsupported transport type: ${config.transport}. Skipping.`
-            );
-            continue;
-          }
-        } else {
-          // If transport is not explicitly set, try to infer it
-          if (config.command && Array.isArray(config.args)) {
-            // Looks like stdio
-            const stdioConfig: StdioConnection = {
-              transport: 'stdio',
-              command: config.command,
-              args: config.args,
-            };
-
-            // Add optional properties if they exist
-            if (config.env && typeof config.env === 'object') {
-              stdioConfig.env = config.env;
-            }
-
-            if (typeof config.encoding === 'string') {
-              stdioConfig.encoding = config.encoding;
-            }
-
-            if (['strict', 'ignore', 'replace'].includes(config.encodingErrorHandler)) {
-              stdioConfig.encodingErrorHandler = config.encodingErrorHandler as
-                | 'strict'
-                | 'ignore'
-                | 'replace';
-            }
-
-            processedConnections[serverName] = stdioConfig;
-          } else if (config.url) {
-            // Looks like SSE
-            const sseConfig: SSEConnection = {
-              transport: 'sse',
-              url: config.url,
-            };
-
-            // Add optional headers if they exist
-            if (config.headers && typeof config.headers === 'object') {
-              sseConfig.headers = config.headers;
-            }
-
-            // Add optional useNodeEventSource flag if it exists
-            if (typeof config.useNodeEventSource === 'boolean') {
-              sseConfig.useNodeEventSource = config.useNodeEventSource;
-            }
-
-            processedConnections[serverName] = sseConfig;
-          } else {
-            logger.warn(`Server "${serverName}" has invalid configuration. Skipping.`);
-            continue;
+            processedConnections[serverName] = connection;
           }
         }
       }
@@ -286,6 +266,29 @@ export class MultiServerMCPClient {
             logger.debug(`Closing SSE transport for server "${serverName}"`);
             await transport.close();
           };
+        } else if (connection.transport === 'programmatic') {
+          const { server } = connection;
+
+          logger.debug(`Creating programmatic connection for server "${serverName}"`);
+
+          // Create a pair of linked in-memory transports
+          const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+
+          // Connect the server to the transport
+          server.connect(serverTransport);
+
+          // Create a client and connect it to the transport
+          client = new Client({
+            name: 'langchain-mcp-adapter',
+            version: '0.1.0',
+          });
+
+          await client.connect(clientTransport);
+
+          cleanup = async () => {
+            logger.debug(`Closing programmatic connection for server "${serverName}"`);
+            await client.close();
+          };
         } else {
           // This should never happen due to the validation in the constructor
           logger.error(`Unsupported transport type for server "${serverName}"`);
@@ -350,6 +353,32 @@ export class MultiServerMCPClient {
     this.serverNameToTools.clear();
 
     logger.info('All MCP connections closed');
+  }
+
+  /**
+   * Connect to an MCP server programmatically by providing a Server instance.
+   *
+   * @param serverName - A name to identify this server
+   * @param serverInstance - An instance of an MCP Server
+   * @returns A map of server names to arrays of tools
+   */
+  async connectToServer(
+    serverName: string,
+    serverInstance: Server
+  ): Promise<Map<string, StructuredTool[]>> {
+    logger.info(`Connecting to server "${serverName}" programmatically...`);
+
+    const connection: ProgrammaticConnection = {
+      transport: 'programmatic',
+      server: serverInstance,
+    };
+
+    const connections: Record<string, Connection> = {
+      [serverName]: connection,
+    };
+
+    this.connections = connections;
+    return this.initializeConnections();
   }
 
   /**
