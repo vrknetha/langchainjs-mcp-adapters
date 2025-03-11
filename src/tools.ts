@@ -81,16 +81,35 @@ export function convertMcpToolToLangchainTool(
 
       // Convert each property to a Zod type
       Object.entries(toolSchema.properties).forEach(([key, value]: [string, any]) => {
-        if (value.type === 'string') {
+        if (value.enum !== undefined) {
+          schemaShape[key] = z.union(value.enum.map((item: string) => z.literal(item)));
+        } else if (value.type === 'string') {
           schemaShape[key] = z.string();
         } else if (value.type === 'number') {
-          schemaShape[key] = z.number();
+          let schema = z.number();
+
+          if (value.minimum !== undefined) {
+            schema = schema.min(value.minimum);
+          }
+          if (value.maximum !== undefined) {
+            schema = schema.max(value.maximum);
+          }
+
+          schemaShape[key] = schema;
         } else if (value.type === 'boolean') {
           schemaShape[key] = z.boolean();
         } else if (value.type === 'array') {
           schemaShape[key] = z.array(z.any());
         } else {
           schemaShape[key] = z.any();
+        }
+
+        if (value.description !== undefined) {
+          schemaShape[key] = schemaShape[key].describe(value.description);
+        }
+
+        if (value.default !== undefined) {
+          schemaShape[key] = schemaShape[key].default(value.default);
         }
       });
 
