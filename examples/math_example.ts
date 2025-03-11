@@ -25,17 +25,14 @@ async function main() {
     const serverTools = await client.initializeConnections();
     console.log('Connected to math server');
 
-    // Get the math tools
-    const mathTools = serverTools.get('math') || [];
-    console.log(`Available tools: ${mathTools.map(tool => tool.name).join(', ')}`);
     console.log(`Tool descriptions:`);
-    for (const tool of mathTools) {
+    for (const tool of serverTools) {
       console.log(`- ${tool.name}: ${tool.description}`);
     }
 
     // Add two numbers
     console.log('\nAdding 5 + 3...');
-    const addTool = mathTools.find(tool => tool.name === 'add');
+    const addTool = serverTools.find(tool => tool.name === 'add');
     if (!addTool) {
       throw new Error('add tool not found');
     }
@@ -44,7 +41,7 @@ async function main() {
 
     // Multiply two numbers
     console.log('\nMultiplying 4 * 7...');
-    const multiplyTool = mathTools.find(tool => tool.name === 'multiply');
+    const multiplyTool = serverTools.find(tool => tool.name === 'multiply');
     if (!multiplyTool) {
       throw new Error('multiply tool not found');
     }

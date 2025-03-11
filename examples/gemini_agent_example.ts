@@ -43,17 +43,9 @@ async function main() {
     // Get all tools from all servers
     const serverTools = client.getTools();
 
-    // Flatten all tools for use with the agent
-    const allTools = Array.from(serverTools.values()).flat();
-    console.log(`Available tools: ${allTools.map(tool => tool.name).join(', ')}`);
-
-    // Print tool descriptions
     console.log('Tool descriptions:');
-    for (const [serverName, tools] of serverTools.entries()) {
-      console.log(`\nServer: ${serverName}`);
-      for (const tool of tools) {
-        console.log(`- ${tool.name}: ${tool.description}`);
-      }
+    for (const tool of serverTools) {
+      console.log(`- ${tool.name}: ${tool.description}`);
     }
 
     // Create an agent

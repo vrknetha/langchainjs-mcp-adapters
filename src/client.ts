@@ -1,7 +1,7 @@
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { SSEClientTransport } from '@modelcontextprotocol/sdk/client/sse.js';
-import { StructuredTool } from '@langchain/core/tools';
+import { StructuredToolInterface } from '@langchain/core/tools';
 import { loadMcpTools } from './tools.js';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -34,7 +34,7 @@ type MCPConfig = {
  */
 export class MultiServerMCPClient {
   private clients: Map<string, Client> = new Map();
-  private serverNameToTools: Map<string, StructuredTool[]> = new Map();
+  private serverNameToTools: StructuredToolInterface[] = [];
   private connections?: Record<string, Connection>;
   private cleanupFunctions: Array<() => Promise<void>> = [];
 
@@ -196,10 +196,10 @@ export class MultiServerMCPClient {
    *
    * @returns A map of server names to arrays of tools
    */
-  async initializeConnections(): Promise<Map<string, StructuredTool[]>> {
+  async initializeConnections(): Promise<StructuredToolInterface[]> {
     if (!this.connections) {
       logger.warn('No connections to initialize');
-      return new Map();
+      return [];
     }
 
     for (const [serverName, connection] of Object.entries(this.connections)) {
@@ -358,7 +358,7 @@ export class MultiServerMCPClient {
         try {
           logger.debug(`Loading tools for server "${serverName}"...`);
           const tools = await loadMcpTools(client);
-          this.serverNameToTools.set(serverName, tools);
+          this.serverNameToTools.push(...tools);
           logger.info(`Successfully loaded ${tools.length} tools from server "${serverName}"`);
         } catch (error) {
           logger.error(`Failed to load tools from server "${serverName}": ${error}`);
@@ -374,9 +374,9 @@ export class MultiServerMCPClient {
   /**
    * Get all tools from all servers.
    *
-   * @returns A map of server names to arrays of tools
+   * @returns An array of structured tool interfaces
    */
-  getTools(): Map<string, StructuredTool[]> {
+  getTools(): StructuredToolInterface[] {
     return this.serverNameToTools;
   }
 
@@ -406,7 +406,7 @@ export class MultiServerMCPClient {
 
     this.cleanupFunctions = [];
     this.clients.clear();
-    this.serverNameToTools.clear();
+    this.serverNameToTools = [];
 
     logger.info('All MCP connections closed');
   }
@@ -425,7 +425,7 @@ export class MultiServerMCPClient {
     command: string,
     args: string[],
     env?: Record<string, string>
-  ): Promise<Map<string, StructuredTool[]>> {
+  ): Promise<StructuredToolInterface[]> {
     const connections: Record<string, Connection> = {
       [serverName]: {
         transport: 'stdio',
@@ -453,7 +453,7 @@ export class MultiServerMCPClient {
     url: string,
     headers?: Record<string, string>,
     useNodeEventSource?: boolean
-  ): Promise<Map<string, StructuredTool[]>> {
+  ): Promise<StructuredToolInterface[]> {
     const connection: SSEConnection = {
       transport: 'sse',
       url,

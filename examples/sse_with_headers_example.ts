@@ -36,7 +36,7 @@ async function main() {
 
   // Get the tools from the server
   let serverTools = client.getTools();
-  console.log(`Retrieved ${serverTools.size} server tools from the first connection\n`);
+  console.log(`Retrieved ${serverTools.length} server tools from the first connection\n`);
 
   // Method 2: Alternative approach using a server with query parameters (for browsers)
   console.log('Method 2: Using SSE with authorization in query parameters (browser-compatible)');
@@ -55,7 +55,7 @@ async function main() {
 
   // Get tools from the second connection
   serverTools = client2.getTools();
-  console.log(`Retrieved ${serverTools.size} server tools from the second connection\n`);
+  console.log(`Retrieved ${serverTools.length} server tools from the second connection\n`);
 
   // Method 3: Using a proxy server (recommended for browser environments)
   console.log('Method 3: Using a proxy server (recommended for browsers)');
@@ -74,7 +74,7 @@ async function main() {
 
   // Get tools from the third connection
   serverTools = client3.getTools();
-  console.log(`Retrieved ${serverTools.size} server tools from the third connection\n`);
+  console.log(`Retrieved ${serverTools.length} server tools from the third connection\n`);
 
   // Close all clients
   console.log('Closing all connections...');

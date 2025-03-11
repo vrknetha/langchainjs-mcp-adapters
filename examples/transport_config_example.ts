@@ -53,26 +53,18 @@ async function main() {
     // Get all tools from all servers
     const serverTools = client.getTools();
 
-    if (serverTools.size === 0) {
+    if (serverTools.length === 0) {
       console.log('No tools available. Make sure at least one server is running.');
       return;
     }
 
-    // Flatten all tools for display purposes
-    const allTools = Array.from(serverTools.values()).flat();
-    console.log(`Available tools: ${allTools.map(tool => tool.name).join(', ')}`);
-
-    console.log(`Tool descriptions:`);
-    for (const [serverName, tools] of serverTools.entries()) {
-      console.log(`\nServer: ${serverName}`);
-      for (const tool of tools) {
-        console.log(`- ${tool.name}: ${tool.description}`);
-      }
+    console.log('Tool descriptions:');
+    for (const tool of serverTools) {
+      console.log(`- ${tool.name}: ${tool.description}`);
     }
 
     // Use the add tool from math server if available
-    const mathTools = serverTools.get('math') || [];
-    const addTool = mathTools.find(tool => tool.name === 'add');
+    const addTool = serverTools.find(tool => tool.name === 'add');
     if (addTool) {
       console.log('\nUsing add tool from math server...');
       const addResult = await addTool.invoke({ a: 10, b: 5 });
@@ -82,7 +74,7 @@ async function main() {
     }
 
     // Use the multiply tool from math server if available
-    const multiplyTool = mathTools.find(tool => tool.name === 'multiply');
+    const multiplyTool = serverTools.find(tool => tool.name === 'multiply');
     if (multiplyTool) {
       console.log('\nUsing multiply tool from math server...');
       const multiplyResult = await multiplyTool.invoke({ a: 7, b: 8 });
@@ -92,8 +84,7 @@ async function main() {
     }
 
     // Get temperature from weather server if available
-    const weatherTools = serverTools.get('weather') || [];
-    const getTempTool = weatherTools.find(tool => tool.name === 'get_temperature');
+    const getTempTool = serverTools.find(tool => tool.name === 'get_temperature');
     if (getTempTool) {
       console.log('\nGetting temperature from weather server...');
       const tempResult = await getTempTool.invoke({ city: 'Tokyo' });
@@ -103,7 +94,7 @@ async function main() {
     }
 
     // Get forecast from weather server if available
-    const getForecastTool = weatherTools.find(tool => tool.name === 'get_forecast');
+    const getForecastTool = serverTools.find(tool => tool.name === 'get_forecast');
     if (getForecastTool) {
       console.log('\nGetting forecast from weather server...');
       const forecastResult = await getForecastTool.invoke({

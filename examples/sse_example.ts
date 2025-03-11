@@ -27,16 +27,14 @@ async function main() {
     console.log('Connected to weather server');
 
     // Get the weather tools
-    const weatherTools = serverTools.get('weather') || [];
-    console.log(`Available tools: ${weatherTools.map(tool => tool.name).join(', ')}`);
     console.log(`Tool descriptions:`);
-    for (const tool of weatherTools) {
+    for (const tool of serverTools) {
       console.log(`- ${tool.name}: ${tool.description}`);
     }
 
     // Get temperature for a city
     console.log('\nGetting temperature for New York...');
-    const getTempTool = weatherTools.find(tool => tool.name === 'get_temperature');
+    const getTempTool = serverTools.find(tool => tool.name === 'get_temperature');
     if (!getTempTool) {
       throw new Error('get_temperature tool not found');
     }
@@ -45,7 +43,7 @@ async function main() {
 
     // Get forecast for a city
     console.log('\nGetting forecast for London...');
-    const getForecastTool = weatherTools.find(tool => tool.name === 'get_forecast');
+    const getForecastTool = serverTools.find(tool => tool.name === 'get_forecast');
     if (!getForecastTool) {
       throw new Error('get_forecast tool not found');
     }

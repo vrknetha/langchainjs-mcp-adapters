@@ -40,14 +40,10 @@ async function main() {
 
     // Get tools
     const tools = client.getTools();
-    console.log(`Successfully connected to ${tools.size} servers`);
+    console.log(`Successfully connected to ${tools.length} tools`);
 
-    // Print tool names
-    for (const [serverName, serverTools] of tools.entries()) {
-      console.log(`Server: ${serverName}, Tools: ${serverTools.length}`);
-      for (const tool of serverTools) {
-        console.log(`  - ${tool.name}: ${tool.description}`);
-      }
+    for (const tool of tools) {
+      console.log(`  - ${tool.name}: ${tool.description}`);
     }
 
     // Close the client
@@ -72,14 +68,11 @@ async function main() {
 
     // Get tools
     const tools2 = client2.getTools();
-    console.log(`Successfully connected to ${tools2.size} servers`);
+    console.log(`Successfully connected to ${tools2.length} tools`);
 
     // Print tool names
-    for (const [serverName, serverTools] of tools2.entries()) {
-      console.log(`Server: ${serverName}, Tools: ${serverTools.length}`);
-      for (const tool of serverTools) {
-        console.log(`  - ${tool.name}: ${tool.description}`);
-      }
+    for (const tool of tools2) {
+      console.log(`  - ${tool.name}: ${tool.description}`);
     }
 
     // Close the client
@@ -95,14 +88,11 @@ async function main() {
 
     // Get tools
     const tools3 = client3.getTools();
-    console.log(`Successfully connected to ${tools3.size} servers`);
+    console.log(`Successfully connected to ${tools3.length} tools`);
 
     // Print tool names
-    for (const [serverName, serverTools] of tools3.entries()) {
-      console.log(`Server: ${serverName}, Tools: ${serverTools.length}`);
-      for (const tool of serverTools) {
-        console.log(`  - ${tool.name}: ${tool.description}`);
-      }
+    for (const tool of tools3) {
+      console.log(`  - ${tool.name}: ${tool.description}`);
     }
 
     // Close the client

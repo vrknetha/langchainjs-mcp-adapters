@@ -56,15 +56,10 @@ async function main() {
 
     // Use the standard agent executor instead of createOpenAIFunctionsAgent
     // Add a type assertion to work around the version incompatibility
-    const agentExecutor = await initializeAgentExecutorWithOptions(
-      // @ts-expect-error Type assertion to work around version incompatibility issues
-      allTools,
-      model,
-      {
-        agentType: 'openai-functions',
-        verbose: true,
-      }
-    );
+    const agentExecutor = await initializeAgentExecutorWithOptions(allTools, model, {
+      agentType: 'openai-functions',
+      verbose: true,
+    });
 
     // Run the agent with different queries
     const queries = [

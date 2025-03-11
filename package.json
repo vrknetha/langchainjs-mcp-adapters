@@ -43,12 +43,12 @@
     "@langchain/openai": "^0.4.4",
     "@modelcontextprotocol/sdk": "^1.x",
     "dotenv": "^16.4.7",
-    "langchain": "^0.1.0",
+    "langchain": "^0.3.19",
     "winston": "^3.17.0"
   },
   "peerDependencies": {
     "@modelcontextprotocol/sdk": "^1.x",
-    "langchain": "^0.1.0"
+    "langchain": "^0.3.19"
   },
   "optionalDependencies": {
     "extended-eventsource": "^1.x"
