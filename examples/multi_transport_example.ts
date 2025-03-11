@@ -150,7 +150,7 @@ async function demonstrateTools(client: MultiServerMCPClient) {
   // Get all tools from all servers
   const serverTools = client.getTools();
 
-  if (serverTools.size === 0) {
+  if (serverTools.length === 0) {
     console.log('No tools available. Make sure at least one server is running.');
     return;
   }
@@ -160,17 +160,13 @@ async function demonstrateTools(client: MultiServerMCPClient) {
   console.log(`\nAvailable tools: ${allTools.map(tool => tool.name).join(', ')}`);
 
   console.log(`Tool descriptions:`);
-  for (const [serverName, tools] of serverTools.entries()) {
-    console.log(`\nServer: ${serverName}`);
-    for (const tool of tools) {
-      console.log(`- ${tool.name}: ${tool.description}`);
-    }
+  for (const tool of serverTools) {
+    console.log(`- ${tool.name}: ${tool.description}`);
   }
 
   // Use the math tools if available
   console.log('\n--- Math Operations ---');
-  const mathTools = serverTools.get('math') || [];
-  const addTool = mathTools.find(tool => tool.name === 'add');
+  const addTool = serverTools.find(tool => tool.name === 'add');
   if (addTool) {
     const addResult = await addTool.invoke({ a: 5, b: 3 });
     console.log(`5 + 3 = ${addResult}`);
@@ -178,7 +174,7 @@ async function demonstrateTools(client: MultiServerMCPClient) {
     console.log('Add tool not available');
   }
 
-  const multiplyTool = mathTools.find(tool => tool.name === 'multiply');
+  const multiplyTool = serverTools.find(tool => tool.name === 'multiply');
   if (multiplyTool) {
     const multiplyResult = await multiplyTool.invoke({ a: 4, b: 7 });
     console.log(`4 * 7 = ${multiplyResult}`);
@@ -188,8 +184,7 @@ async function demonstrateTools(client: MultiServerMCPClient) {
 
   // Use the weather tools if available
   console.log('\n--- Weather Information ---');
-  const weatherTools = serverTools.get('weather') || [];
-  const temperatureTool = weatherTools.find(tool => tool.name === 'get_temperature');
+  const temperatureTool = serverTools.find(tool => tool.name === 'get_temperature');
   if (temperatureTool) {
     const temperatureResult = await temperatureTool.invoke({
       city: 'New York',
@@ -199,7 +194,7 @@ async function demonstrateTools(client: MultiServerMCPClient) {
     console.log('Temperature tool not available');
   }
 
-  const forecastTool = weatherTools.find(tool => tool.name === 'get_forecast');
+  const forecastTool = serverTools.find(tool => tool.name === 'get_forecast');
   if (forecastTool) {
     const forecastResult = await forecastTool.invoke({
       city: 'London',

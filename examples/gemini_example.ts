@@ -48,11 +48,8 @@ async function main() {
 
     // Print tool descriptions
     console.log('Tool descriptions:');
-    for (const [serverName, tools] of serverTools.entries()) {
-      console.log(`\nServer: ${serverName}`);
-      for (const tool of tools) {
-        console.log(`- ${tool.name}: ${tool.description}`);
-      }
+    for (const tool of serverTools) {
+      console.log(`- ${tool.name}: ${tool.description}`);
     }
 
     // Create the model
@@ -66,11 +63,8 @@ async function main() {
     // Define some example operations
     console.log('\n--- Math Operations ---');
 
-    // Get math tools
-    const mathTools = serverTools.get('math') || [];
-
     // Add two numbers
-    const addTool = mathTools.find(t => t.name === 'add');
+    const addTool = serverTools.find(t => t.name === 'add');
     if (addTool) {
       const addResult = await addTool.invoke({
         a: 5,
@@ -82,7 +76,7 @@ async function main() {
     }
 
     // Multiply two numbers
-    const multiplyTool = mathTools.find(t => t.name === 'multiply');
+    const multiplyTool = serverTools.find(t => t.name === 'multiply');
     if (multiplyTool) {
       const multiplyResult = await multiplyTool.invoke({
         a: 4,
@@ -96,11 +90,8 @@ async function main() {
     // Get weather information
     console.log('\n--- Weather Information ---');
 
-    // Get weather tools
-    const weatherTools = serverTools.get('weather') || [];
-
     // Get temperature for a city
-    const temperatureTool = weatherTools.find(t => t.name === 'get_temperature');
+    const temperatureTool = serverTools.find(t => t.name === 'get_temperature');
     let temperatureResult;
     if (temperatureTool) {
       temperatureResult = await temperatureTool.invoke({
@@ -112,7 +103,7 @@ async function main() {
     }
 
     // Get forecast for a city
-    const forecastTool = weatherTools.find(t => t.name === 'get_forecast');
+    const forecastTool = serverTools.find(t => t.name === 'get_forecast');
     let forecastResult;
     if (forecastTool) {
       forecastResult = await forecastTool.invoke({

@@ -77,11 +77,15 @@ describe('Agent Integration (Recommended Approach)', () => {
     });
 
     // Create a standard agent executor (RECOMMENDED)
-    // @ts-expect-error Type assertion to work around version incompatibility issues between different @langchain/core versions
-    const executor = await initializeAgentExecutorWithOptions(tools, llm, {
-      agentType: 'chat-zero-shot-react-description',
-      verbose: true,
-    });
+    const executor = await initializeAgentExecutorWithOptions(
+      tools,
+      // Type assertion to work around version incompatibility issues between different @langchain/core versions
+      llm as any,
+      {
+        agentType: 'chat-zero-shot-react-description',
+        verbose: true,
+      }
+    );
 
     // This is the recommended approach that works with MCP tools
     const result = await executor.invoke({

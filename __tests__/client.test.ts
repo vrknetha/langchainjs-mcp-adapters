@@ -224,9 +224,9 @@ describe('MultiServerMCPClient', () => {
         },
       });
 
-      // Should not throw, just log a warning and return empty Map
+      // Should not throw, just log a warning and return empty array
       const result = await client.initializeConnections();
-      expect(result.size).toBe(0);
+      expect(result.length).toBe(0);
     });
 
     it('should skip servers with missing required parameters', async () => {
@@ -236,9 +236,9 @@ describe('MultiServerMCPClient', () => {
         } as any,
       });
 
-      // Should not throw, just log a warning and return empty Map
+      // Should not throw, just log a warning and return empty array
       const result1 = await clientWithMissingCommand.initializeConnections();
-      expect(result1.size).toBe(0);
+      expect(result1.length).toBe(0);
 
       const clientWithMissingArgs = new MultiServerMCPClient({
         'test-server': {
@@ -247,9 +247,9 @@ describe('MultiServerMCPClient', () => {
         } as any,
       });
 
-      // Should not throw, just log a warning and return empty Map
+      // Should not throw, just log a warning and return empty array
       const result2 = await clientWithMissingArgs.initializeConnections();
-      expect(result2.size).toBe(0);
+      expect(result2.length).toBe(0);
 
       const clientWithMissingUrl = new MultiServerMCPClient({
         'test-server': {
@@ -257,9 +257,9 @@ describe('MultiServerMCPClient', () => {
         } as any,
       });
 
-      // Should not throw, just log a warning and return empty Map
+      // Should not throw, just log a warning and return empty array
       const result3 = await clientWithMissingUrl.initializeConnections();
-      expect(result3.size).toBe(0);
+      expect(result3.length).toBe(0);
     });
   });
 
@@ -281,15 +281,12 @@ describe('MultiServerMCPClient', () => {
       await client.initializeConnections();
 
       const serverTools = client.getTools();
-      expect(serverTools.size).toBe(2); // Two servers
+      expect(serverTools).toBeInstanceOf(Array);
+      expect(serverTools.length).toBeGreaterThan(0);
 
-      const server1Tools = serverTools.get('server1');
-      const server2Tools = serverTools.get('server2');
-
-      expect(server1Tools).toBeDefined();
-      expect(server2Tools).toBeDefined();
-      expect(server1Tools![0].name).toBe('test-tool');
-      expect(server2Tools![0].name).toBe('test-tool');
+      // Since tools are now in a flat array, we can't check by server name
+      // Just verify at least one tool with the expected name exists
+      expect(serverTools.some(tool => tool.name === 'test-tool')).toBe(true);
     });
   });
 
@@ -380,7 +377,7 @@ describe('MultiServerMCPClient', () => {
 
       // Verify that the maps were cleared
       expect((client as any).clients.size).toBe(0);
-      expect((client as any).serverNameToTools.size).toBe(0);
+      expect((client as any).serverNameToTools.length).toBe(0);
       expect((client as any).cleanupFunctions.length).toBe(0);
     });
   });
@@ -407,24 +404,22 @@ describe('MultiServerMCPClient', () => {
   });
 
   describe('getTools method', () => {
-    it('should return the tools map', () => {
+    it('should return the tools array', () => {
       // Create a client instance
       const client = new MultiServerMCPClient();
 
-      // Set up a mock tools map
-      const toolsMap = new Map();
-      toolsMap.set('server1', [{ name: 'tool1' } as any]);
-      toolsMap.set('server2', [{ name: 'tool2' } as any]);
-      (client as any).serverNameToTools = toolsMap;
+      // Set up a mock tools array
+      const toolsArray = [{ name: 'tool1' } as any, { name: 'tool2' } as any];
+      (client as any).serverNameToTools = toolsArray;
 
       // Call the getTools method
       const result = client.getTools();
 
       // Verify the result
-      expect(result).toBe(toolsMap);
-      expect(result.size).toBe(2);
-      expect(result.get('server1')).toEqual([{ name: 'tool1' }]);
-      expect(result.get('server2')).toEqual([{ name: 'tool2' }]);
+      expect(result).toBe(toolsArray);
+      expect(result.length).toBe(2);
+      expect(result[0].name).toBe('tool1');
+      expect(result[1].name).toBe('tool2');
     });
   });
 
@@ -600,8 +595,8 @@ describe('MultiServerMCPClient', () => {
       // Initialize connections should not throw but log errors
       const result = await client.initializeConnections();
 
-      // Should return an empty map
-      expect(result.size).toBe(0);
+      // Should return an empty array
+      expect(result.length).toBe(0);
 
       // Restore console.error
       console.error = originalConsoleError;
@@ -626,8 +621,8 @@ describe('MultiServerMCPClient', () => {
       // Initialize should handle the unsupported transport
       const result = await client.initializeConnections();
 
-      // Should still be able to get an empty map of tools
-      expect(client.getTools().size).toBe(0);
+      // Should still be able to get an empty array of tools
+      expect(client.getTools().length).toBe(0);
 
       // Should be able to close without errors
       await client.close();

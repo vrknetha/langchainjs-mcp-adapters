@@ -36,45 +36,30 @@ async function main() {
     const serverTools = await client.initializeConnections();
 
     // Log the available tools from each server
-    // Use Array.from to convert the Map entries to an array
-    Array.from(serverTools.keys()).forEach(serverName => {
-      const tools = serverTools.get(serverName) || [];
-      logger.info(`Server "${serverName}" has ${tools.length} tools available:`);
-      tools.forEach(tool => {
-        logger.info(`  - ${tool.name}: ${tool.description}`);
-      });
+
+    console.log('Tool descriptions:');
+    serverTools.forEach(tool => {
+      logger.info(`  - ${tool.name}: ${tool.description}`);
     });
 
-    // Get the math tools
-    const mathTools = serverTools.get('math') || [];
-    if (mathTools.length > 0) {
-      // Find the add tool
-      const addTool = mathTools.find(tool => tool.name === 'add');
-      if (addTool) {
-        logger.debug('Calling add tool with numbers 5 and 7');
-        const result = await addTool.invoke({ a: 5, b: 7 });
-        logger.info(`Result of 5 + 7 = ${result}`);
-      } else {
-        logger.warn('Add tool not found in math server');
-      }
+    // Find the add tool
+    const addTool = serverTools.find(tool => tool.name === 'add');
+    if (addTool) {
+      logger.debug('Calling add tool with numbers 5 and 7');
+      const result = await addTool.invoke({ a: 5, b: 7 });
+      logger.info(`Result of 5 + 7 = ${result}`);
     } else {
-      logger.error('No tools found for math server');
+      logger.warn('Add tool not found in math server');
     }
 
-    // Get the weather tools
-    const weatherTools = serverTools.get('weather') || [];
-    if (weatherTools.length > 0) {
-      // Find the temperature tool
-      const tempTool = weatherTools.find(tool => tool.name === 'get_temperature');
-      if (tempTool) {
-        logger.debug('Calling temperature tool for San Francisco');
-        const result = await tempTool.invoke({ city: 'San Francisco' });
-        logger.info(`Temperature in San Francisco: ${result}`);
-      } else {
-        logger.warn('Temperature tool not found in weather server');
-      }
+    // Find the temperature tool
+    const tempTool = serverTools.find(tool => tool.name === 'get_temperature');
+    if (tempTool) {
+      logger.debug('Calling temperature tool for San Francisco');
+      const result = await tempTool.invoke({ city: 'San Francisco' });
+      logger.info(`Temperature in San Francisco: ${result}`);
     } else {
-      logger.error('No tools found for weather server');
+      logger.warn('Temperature tool not found in weather server');
     }
 
     // Demonstrate different log levels
