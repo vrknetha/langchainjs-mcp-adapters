@@ -1,6 +1,7 @@
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StructuredTool, StructuredToolInterface } from '@langchain/core/tools';
 import { z } from 'zod';
+import { JSONSchemaToZod } from '@dmitryrechkin/json-schema-to-zod';
 import logger from './logger.js';
 
 // Define the interfaces that may not be directly exported from the SDK
@@ -63,46 +64,115 @@ function _convertCallToolResult(result: CallToolResult): any {
 }
 
 /**
- * Convert a JSON Schema to a Zod schema using a simple direct implementation.
+ * Ensure the tool schema is valid for OpenAI by fixing common issues.
  *
- * @param jsonSchema - The JSON Schema to convert
- * @returns A Zod schema
+ * @param schema - The tool schema to validate
+ * @returns A valid schema
  */
-function _convertJsonSchemaToZod(jsonSchema: any): z.ZodTypeAny {
+function _ensureValidToolSchema(schema: any): any {
+  if (!schema) return schema;
+
   try {
-    if (!jsonSchema || jsonSchema.type !== 'object' || !jsonSchema.properties) {
-      return z.object({});
+    // Make a deep copy of the schema to avoid modifying the original
+    const validatedSchema = JSON.parse(JSON.stringify(schema));
+
+    // Add checks for required and properties for root object
+    if (validatedSchema.type === 'object') {
+      if (!validatedSchema.required) {
+        validatedSchema.required = [];
+      }
+
+      if (!validatedSchema.properties) {
+        validatedSchema.properties = {};
+      }
+
+      // Apply fixes to the entire schema recursively
+      fixArrayProperties(validatedSchema);
     }
 
-    const schemaShape: Record<string, z.ZodTypeAny> = {};
+    return validatedSchema;
+  } catch (error) {
+    logger.warn(`Error validating schema: ${error}`);
+    return schema;
+  }
+}
 
-    Object.entries(jsonSchema.properties).forEach(([key, value]) => {
-      const propSchema = value as any;
+/**
+ * Recursively fix array properties in a schema by ensuring they have an 'items' property.
+ * This helps ensure compatibility with OpenAI and other LLMs.
+ *
+ * @param obj - The schema object or sub-object to process
+ */
+function fixArrayProperties(obj: any): void {
+  if (!obj || typeof obj !== 'object') return;
 
-      // Handle basic types with simple conversion
-      if (propSchema.type === 'string') {
-        schemaShape[key] = z.string();
-      } else if (propSchema.type === 'number' || propSchema.type === 'integer') {
-        schemaShape[key] = z.number();
-      } else if (propSchema.type === 'boolean') {
-        schemaShape[key] = z.boolean();
-      } else if (propSchema.type === 'array') {
-        // Simple array handling
-        schemaShape[key] = z.array(z.any());
-      } else if (propSchema.type === 'object' && propSchema.properties) {
-        // Simple recursion for nested objects
-        schemaShape[key] = _convertJsonSchemaToZod(propSchema);
-      } else {
-        // Fallback for unknown types
-        schemaShape[key] = z.any();
+  // If this is an array type schema property, ensure it has an items property
+  if (obj.type === 'array' && !obj.items) {
+    logger.debug(`Adding missing 'items' property to array type`);
+
+    // Special handling for known array properties that need specific items schemas
+    if (obj.name === 'actions' || (obj.parent && obj.parent.property === 'actions')) {
+      // Handle 'actions' property which needs object items with 'type' and 'selector'
+      obj.items = {
+        type: 'object',
+        properties: {
+          type: { type: 'string' },
+          selector: { type: 'string' },
+        },
+      };
+      logger.debug(`Added specific 'items' schema for 'actions' array property`);
+    } else if (obj.name === 'formats' || (obj.parent && obj.parent.property === 'formats')) {
+      // Handle 'formats' property which should have string items
+      obj.items = { type: 'string' };
+      logger.debug(`Added specific 'items' schema for 'formats' array property`);
+    } else {
+      // Default case - use string items for unknown array properties
+      obj.items = { type: 'string' };
+    }
+  }
+
+  // For objects with properties, traverse each property
+  if (obj.properties && typeof obj.properties === 'object') {
+    Object.entries(obj.properties).forEach(([key, value]) => {
+      const prop = value as any;
+
+      // Add parent and property name info for context
+      if (prop && typeof prop === 'object') {
+        prop.parent = { object: obj, property: key };
+        prop.name = key;
+      }
+
+      // Recursively fix this property
+      fixArrayProperties(prop);
+    });
+  }
+
+  // For objects with array items with more complex structure
+  if (obj.items && typeof obj.items === 'object') {
+    // Add parent context
+    obj.items.parent = { object: obj, property: 'items' };
+
+    // Recursively fix array item definitions
+    fixArrayProperties(obj.items);
+  }
+
+  // Handle patternProperties for regex-based properties
+  if (obj.patternProperties && typeof obj.patternProperties === 'object') {
+    Object.values(obj.patternProperties).forEach(patternProp => {
+      if (patternProp && typeof patternProp === 'object') {
+        fixArrayProperties(patternProp as any);
       }
     });
-
-    return z.object(schemaShape);
-  } catch (error) {
-    logger.warn(`Error converting JSON Schema to Zod: ${error}`);
-    return z.object({});
   }
+
+  // Handle oneOf, anyOf, allOf for complex schemas
+  ['oneOf', 'anyOf', 'allOf'].forEach(complexProp => {
+    if (Array.isArray(obj[complexProp])) {
+      obj[complexProp].forEach((subSchema: any) => {
+        fixArrayProperties(subSchema);
+      });
+    }
+  });
 }
 
 /**
@@ -182,13 +252,16 @@ export function convertMcpToolToLangchainTool(
   toolDescription: string,
   toolSchema: any
 ): StructuredToolInterface<z.ZodObject<any>> {
+  // Ensure the schema is valid for OpenAI and other LLMs
+  const validToolSchema = _ensureValidToolSchema(toolSchema);
+
   // Convert the JSON schema to a Zod schema
   let zodSchema: z.ZodObject<any>;
 
   try {
-    // Convert schema with simplified implementation
-    if (toolSchema) {
-      const convertedSchema = _convertJsonSchemaToZod(toolSchema);
+    if (validToolSchema) {
+      // Use the third-party library for schema conversion
+      const convertedSchema = JSONSchemaToZod.convert(validToolSchema);
 
       // Ensure we always have a ZodObject
       if (convertedSchema instanceof z.ZodObject) {

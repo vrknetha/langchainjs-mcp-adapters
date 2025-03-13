@@ -106,197 +106,139 @@ export class MultiServerMCPClient {
    */
   constructor(connections?: Record<string, any>) {
     if (connections) {
-      // Process connections to ensure they have the correct format
-      const processedConnections: Record<string, Connection> = {};
+      this.connections = this.processConnections(connections);
+    }
+  }
 
-      for (const [serverName, config] of Object.entries(connections)) {
-        if (typeof config !== 'object' || config === null) {
-          logger.warn(`Invalid configuration for server "${serverName}". Skipping.`);
-          continue;
-        }
+  /**
+   * Process connection configurations
+   *
+   * @param connections - Raw connection configurations
+   * @returns Processed connection configurations
+   */
+  private processConnections(connections: Record<string, any>): Record<string, Connection> {
+    const processedConnections: Record<string, Connection> = {};
 
-        try {
-          // If transport is explicitly set
-          if (config.transport) {
-            if (config.transport === 'stdio') {
-              if (!config.command || !Array.isArray(config.args)) {
-                logger.warn(
-                  `Server "${serverName}" is missing required properties for stdio transport. Skipping.`
-                );
-                continue;
-              }
-
-              const stdioConfig: StdioConnection = {
-                transport: 'stdio',
-                command: config.command,
-                args: config.args,
-              };
-
-              // Add optional properties if they exist
-              if (config.env && typeof config.env === 'object') {
-                stdioConfig.env = config.env;
-              }
-
-              if (typeof config.encoding === 'string') {
-                stdioConfig.encoding = config.encoding;
-              }
-
-              if (['strict', 'ignore', 'replace'].includes(config.encodingErrorHandler)) {
-                stdioConfig.encodingErrorHandler = config.encodingErrorHandler as
-                  | 'strict'
-                  | 'ignore'
-                  | 'replace';
-              }
-
-              // Add restart configuration if present
-              if (config.restart && typeof config.restart === 'object') {
-                stdioConfig.restart = {
-                  enabled: Boolean(config.restart.enabled),
-                };
-
-                if (typeof config.restart.maxAttempts === 'number') {
-                  stdioConfig.restart.maxAttempts = config.restart.maxAttempts;
-                }
-
-                if (typeof config.restart.delayMs === 'number') {
-                  stdioConfig.restart.delayMs = config.restart.delayMs;
-                }
-              }
-
-              processedConnections[serverName] = stdioConfig;
-            } else if (config.transport === 'sse') {
-              if (!config.url) {
-                logger.warn(
-                  `Server "${serverName}" is missing required URL for SSE transport. Skipping.`
-                );
-                continue;
-              }
-
-              const sseConfig: SSEConnection = {
-                transport: 'sse',
-                url: config.url,
-              };
-
-              // Add optional headers if they exist
-              if (config.headers && typeof config.headers === 'object') {
-                sseConfig.headers = config.headers;
-              }
-
-              // Add optional useNodeEventSource flag if it exists
-              if (typeof config.useNodeEventSource === 'boolean') {
-                sseConfig.useNodeEventSource = config.useNodeEventSource;
-              }
-
-              // Add reconnection configuration if present
-              if (config.reconnect && typeof config.reconnect === 'object') {
-                sseConfig.reconnect = {
-                  enabled: Boolean(config.reconnect.enabled),
-                };
-
-                if (typeof config.reconnect.maxAttempts === 'number') {
-                  sseConfig.reconnect.maxAttempts = config.reconnect.maxAttempts;
-                }
-
-                if (typeof config.reconnect.delayMs === 'number') {
-                  sseConfig.reconnect.delayMs = config.reconnect.delayMs;
-                }
-              }
-
-              processedConnections[serverName] = sseConfig;
-            } else {
-              logger.warn(
-                `Server "${serverName}" has unsupported transport type: ${config.transport}. Skipping.`
-              );
-              continue;
-            }
-          } else {
-            // If transport is not explicitly set, try to infer it
-            if (config.command && Array.isArray(config.args)) {
-              // Looks like stdio
-              const stdioConfig: StdioConnection = {
-                transport: 'stdio',
-                command: config.command,
-                args: config.args,
-              };
-
-              // Add optional properties if they exist
-              if (config.env && typeof config.env === 'object') {
-                stdioConfig.env = config.env;
-              }
-
-              if (typeof config.encoding === 'string') {
-                stdioConfig.encoding = config.encoding;
-              }
-
-              if (['strict', 'ignore', 'replace'].includes(config.encodingErrorHandler)) {
-                stdioConfig.encodingErrorHandler = config.encodingErrorHandler as
-                  | 'strict'
-                  | 'ignore'
-                  | 'replace';
-              }
-
-              // Add restart configuration if present
-              if (config.restart && typeof config.restart === 'object') {
-                stdioConfig.restart = {
-                  enabled: Boolean(config.restart.enabled),
-                };
-
-                if (typeof config.restart.maxAttempts === 'number') {
-                  stdioConfig.restart.maxAttempts = config.restart.maxAttempts;
-                }
-
-                if (typeof config.restart.delayMs === 'number') {
-                  stdioConfig.restart.delayMs = config.restart.delayMs;
-                }
-              }
-
-              processedConnections[serverName] = stdioConfig;
-            } else if (config.url) {
-              // Looks like SSE
-              const sseConfig: SSEConnection = {
-                transport: 'sse',
-                url: config.url,
-              };
-
-              // Add optional headers if they exist
-              if (config.headers && typeof config.headers === 'object') {
-                sseConfig.headers = config.headers;
-              }
-
-              // Add optional useNodeEventSource flag if it exists
-              if (typeof config.useNodeEventSource === 'boolean') {
-                sseConfig.useNodeEventSource = config.useNodeEventSource;
-              }
-
-              // Add reconnection configuration if present
-              if (config.reconnect && typeof config.reconnect === 'object') {
-                sseConfig.reconnect = {
-                  enabled: Boolean(config.reconnect.enabled),
-                };
-
-                if (typeof config.reconnect.maxAttempts === 'number') {
-                  sseConfig.reconnect.maxAttempts = config.reconnect.maxAttempts;
-                }
-
-                if (typeof config.reconnect.delayMs === 'number') {
-                  sseConfig.reconnect.delayMs = config.reconnect.delayMs;
-                }
-              }
-
-              processedConnections[serverName] = sseConfig;
-            } else {
-              logger.warn(`Server "${serverName}" has invalid configuration. Skipping.`);
-              continue;
-            }
-          }
-        } catch (error) {
-          logger.error(`Error processing configuration for server "${serverName}": ${error}`);
-          continue;
-        }
+    for (const [serverName, config] of Object.entries(connections)) {
+      if (typeof config !== 'object' || config === null) {
+        logger.warn(`Invalid configuration for server "${serverName}". Skipping.`);
+        continue;
       }
 
-      this.connections = processedConnections;
+      try {
+        // Determine the connection type and process accordingly
+        if (this.isStdioConnection(config)) {
+          processedConnections[serverName] = this.processStdioConfig(serverName, config);
+        } else if (this.isSSEConnection(config)) {
+          processedConnections[serverName] = this.processSSEConfig(serverName, config);
+        } else {
+          logger.warn(`Server "${serverName}" has invalid or unsupported configuration. Skipping.`);
+        }
+      } catch (error) {
+        logger.error(`Error processing configuration for server "${serverName}": ${error}`);
+      }
     }
+
+    return processedConnections;
+  }
+
+  /**
+   * Check if a configuration is for a stdio connection
+   */
+  private isStdioConnection(config: any): boolean {
+    return (
+      (config.transport === 'stdio' || !config.transport) &&
+      config.command &&
+      Array.isArray(config.args)
+    );
+  }
+
+  /**
+   * Check if a configuration is for an SSE connection
+   */
+  private isSSEConnection(config: any): boolean {
+    return (config.transport === 'sse' || !config.transport) && typeof config.url === 'string';
+  }
+
+  /**
+   * Process stdio connection configuration
+   */
+  private processStdioConfig(serverName: string, config: any): StdioConnection {
+    const stdioConfig: StdioConnection = {
+      transport: 'stdio',
+      command: config.command,
+      args: config.args,
+    };
+
+    // Add optional properties if they exist
+    if (config.env && typeof config.env === 'object') {
+      stdioConfig.env = config.env;
+    }
+
+    if (typeof config.encoding === 'string') {
+      stdioConfig.encoding = config.encoding;
+    }
+
+    if (['strict', 'ignore', 'replace'].includes(config.encodingErrorHandler)) {
+      stdioConfig.encodingErrorHandler = config.encodingErrorHandler as
+        | 'strict'
+        | 'ignore'
+        | 'replace';
+    }
+
+    // Add restart configuration if present
+    if (config.restart && typeof config.restart === 'object') {
+      stdioConfig.restart = {
+        enabled: Boolean(config.restart.enabled),
+      };
+
+      if (typeof config.restart.maxAttempts === 'number') {
+        stdioConfig.restart.maxAttempts = config.restart.maxAttempts;
+      }
+
+      if (typeof config.restart.delayMs === 'number') {
+        stdioConfig.restart.delayMs = config.restart.delayMs;
+      }
+    }
+
+    return stdioConfig;
+  }
+
+  /**
+   * Process SSE connection configuration
+   */
+  private processSSEConfig(serverName: string, config: any): SSEConnection {
+    const sseConfig: SSEConnection = {
+      transport: 'sse',
+      url: config.url,
+    };
+
+    // Add optional headers if they exist
+    if (config.headers && typeof config.headers === 'object') {
+      sseConfig.headers = config.headers;
+    }
+
+    // Add optional useNodeEventSource flag if it exists
+    if (typeof config.useNodeEventSource === 'boolean') {
+      sseConfig.useNodeEventSource = config.useNodeEventSource;
+    }
+
+    // Add reconnection configuration if present
+    if (config.reconnect && typeof config.reconnect === 'object') {
+      sseConfig.reconnect = {
+        enabled: Boolean(config.reconnect.enabled),
+      };
+
+      if (typeof config.reconnect.maxAttempts === 'number') {
+        sseConfig.reconnect.maxAttempts = config.reconnect.maxAttempts;
+      }
+
+      if (typeof config.reconnect.delayMs === 'number') {
+        sseConfig.reconnect.delayMs = config.reconnect.delayMs;
+      }
+    }
+
+    return sseConfig;
   }
 
   /**
@@ -341,237 +283,16 @@ export class MultiServerMCPClient {
       try {
         logger.info(`Initializing connection to server "${serverName}"...`);
 
-        let client: Client;
-        let cleanup: () => Promise<void>;
-        let transport: StdioClientTransport | SSEClientTransport;
-
         if (connection.transport === 'stdio') {
-          const { command, args, env, restart } = connection;
-
-          logger.debug(
-            `Creating stdio transport for server "${serverName}" with command: ${command} ${args.join(' ')}`
-          );
-
-          transport = new StdioClientTransport({
-            command,
-            args,
-            env,
-          });
-
-          this.transportInstances.set(serverName, transport);
-
-          client = new Client({
-            name: 'langchain-mcp-adapter',
-            version: '0.1.0',
-          });
-
-          try {
-            await client.connect(transport);
-
-            // Set up auto-restart if configured
-            if (restart?.enabled) {
-              const originalOnClose = transport.onclose;
-              transport.onclose = async () => {
-                if (originalOnClose) {
-                  await originalOnClose();
-                }
-
-                // Only attempt restart if we haven't cleaned up
-                if (this.clients.has(serverName)) {
-                  logger.info(
-                    `Process for server "${serverName}" exited, attempting to restart...`
-                  );
-                  await this.attemptReconnect(
-                    serverName,
-                    connection,
-                    restart.maxAttempts,
-                    restart.delayMs
-                  );
-                }
-              };
-            }
-          } catch (error) {
-            throw new MCPClientError(
-              `Failed to connect to stdio server "${serverName}": ${error}`,
-              serverName
-            );
-          }
-
-          cleanup = async () => {
-            logger.debug(`Closing stdio transport for server "${serverName}"`);
-            await transport.close();
-          };
+          await this.initializeStdioConnection(serverName, connection);
         } else if (connection.transport === 'sse') {
-          const { url, headers, useNodeEventSource, reconnect } = connection;
-
-          logger.debug(`Creating SSE transport for server "${serverName}" with URL: ${url}`);
-
-          try {
-            if (headers) {
-              logger.debug(`Using custom headers for SSE transport to server "${serverName}"`);
-
-              // If useNodeEventSource is true, configure for Node.js environment
-              if (useNodeEventSource) {
-                try {
-                  // First try to use extended-eventsource which has better headers support
-                  try {
-                    // Dynamically import the extended-eventsource package
-                    const ExtendedEventSourceModule = await import('extended-eventsource');
-                    const ExtendedEventSource = ExtendedEventSourceModule.EventSource;
-
-                    logger.debug(`Using Extended EventSource for server "${serverName}"`);
-                    logger.debug(
-                      `Setting headers for Extended EventSource: ${JSON.stringify(headers)}`
-                    );
-
-                    // Override the global EventSource with the extended implementation
-                    (globalThis as any).EventSource = ExtendedEventSource;
-
-                    // For Extended EventSource, create the SSE transport
-                    transport = new SSEClientTransport(new URL(url), {
-                      // Pass empty options for test compatibility
-                      eventSourceInit: {},
-                      requestInit: {},
-                    });
-                  } catch (extendedError) {
-                    // Fall back to standard eventsource if extended-eventsource is not available
-                    logger.debug(
-                      `Extended EventSource not available, falling back to standard EventSource: ${extendedError}`
-                    );
-
-                    // Dynamically import the eventsource package
-                    const EventSourceModule = await import('eventsource');
-                    const EventSource = EventSourceModule.default;
-
-                    logger.debug(`Using Node.js EventSource for server "${serverName}"`);
-                    logger.debug(`Setting headers for EventSource: ${JSON.stringify(headers)}`);
-
-                    // Override the global EventSource with the Node.js implementation
-                    (globalThis as any).EventSource = EventSource;
-
-                    // Create transport with headers correctly configured for Node.js EventSource
-                    transport = new SSEClientTransport(new URL(url), {
-                      // Pass the headers to both eventSourceInit and requestInit for compatibility
-                      eventSourceInit: {
-                        headers: headers,
-                      },
-                      requestInit: {
-                        headers: headers,
-                      },
-                    });
-                  }
-                } catch (error) {
-                  logger.warn(
-                    `Failed to load EventSource packages for server "${serverName}". Headers may not be applied to SSE connection: ${error}`
-                  );
-
-                  // Last resort: create a transport with headers in requestInit
-                  // This may not work for all implementations, but it's our best fallback
-                  transport = new SSEClientTransport(new URL(url), {
-                    requestInit: {
-                      headers: headers,
-                    },
-                    // Added for test compatibility
-                    eventSourceInit: {
-                      headers: headers,
-                    },
-                  });
-                }
-              } else {
-                // For browser environments, use the requestInit approach
-                // NOTE: This has limitations as browser EventSource doesn't support custom headers
-                // If headers are critical, recommend users to set useNodeEventSource=true
-                logger.debug(
-                  `Using browser EventSource for server "${serverName}". Headers may not be applied correctly.`
-                );
-                logger.debug(
-                  `For better headers support in browsers, consider using a custom SSE implementation.`
-                );
-
-                transport = new SSEClientTransport(new URL(url), {
-                  requestInit: {
-                    headers: headers,
-                  },
-                  // Added for test compatibility
-                  eventSourceInit: {
-                    headers: headers,
-                  },
-                });
-              }
-            } else {
-              // No headers, use default transport
-              transport = new SSEClientTransport(new URL(url));
-            }
-
-            this.transportInstances.set(serverName, transport);
-
-            client = new Client({
-              name: 'langchain-mcp-adapter',
-              version: '0.1.0',
-            });
-
-            try {
-              await client.connect(transport);
-
-              // Set up auto-reconnect if configured
-              if (reconnect?.enabled) {
-                const originalOnClose = transport.onclose;
-                transport.onclose = async () => {
-                  if (originalOnClose) {
-                    await originalOnClose();
-                  }
-
-                  // Only attempt reconnect if we haven't cleaned up
-                  if (this.clients.has(serverName)) {
-                    logger.info(
-                      `SSE connection for server "${serverName}" closed, attempting to reconnect...`
-                    );
-                    await this.attemptReconnect(
-                      serverName,
-                      connection,
-                      reconnect.maxAttempts,
-                      reconnect.delayMs
-                    );
-                  }
-                };
-              }
-            } catch (error) {
-              throw new MCPClientError(
-                `Failed to connect to SSE server "${serverName}": ${error}`,
-                serverName
-              );
-            }
-
-            cleanup = async () => {
-              logger.debug(`Closing SSE transport for server "${serverName}"`);
-              await transport.close();
-            };
-          } catch (error) {
-            throw new MCPClientError(
-              `Failed to create SSE transport for server "${serverName}": ${error}`,
-              serverName
-            );
-          }
+          await this.initializeSSEConnection(serverName, connection);
         } else {
           // This should never happen due to the validation in the constructor
           throw new MCPClientError(
             `Unsupported transport type for server "${serverName}"`,
             serverName
           );
-        }
-
-        this.clients.set(serverName, client);
-        this.cleanupFunctions.push(cleanup);
-
-        // Load tools for this server
-        try {
-          logger.debug(`Loading tools for server "${serverName}"...`);
-          const tools = await loadMcpTools(client);
-          this.serverNameToTools.set(serverName, tools);
-          logger.info(`Successfully loaded ${tools.length} tools from server "${serverName}"`);
-        } catch (error) {
-          logger.error(`Failed to load tools from server "${serverName}": ${error}`);
-          // Continue even if tool loading fails - the connection is still established
         }
       } catch (error) {
         if (error instanceof MCPClientError) {
@@ -583,6 +304,275 @@ export class MultiServerMCPClient {
     }
 
     return this.serverNameToTools;
+  }
+
+  /**
+   * Initialize a stdio connection
+   */
+  private async initializeStdioConnection(
+    serverName: string,
+    connection: StdioConnection
+  ): Promise<void> {
+    const { command, args, env, restart } = connection;
+
+    logger.debug(
+      `Creating stdio transport for server "${serverName}" with command: ${command} ${args.join(' ')}`
+    );
+
+    const transport = new StdioClientTransport({
+      command,
+      args,
+      env,
+    });
+
+    this.transportInstances.set(serverName, transport);
+
+    const client = new Client({
+      name: 'langchain-mcp-adapter',
+      version: '0.1.0',
+    });
+
+    try {
+      await client.connect(transport);
+
+      // Set up auto-restart if configured
+      if (restart?.enabled) {
+        this.setupStdioRestart(serverName, transport, connection, restart);
+      }
+    } catch (error) {
+      throw new MCPClientError(
+        `Failed to connect to stdio server "${serverName}": ${error}`,
+        serverName
+      );
+    }
+
+    this.clients.set(serverName, client);
+
+    const cleanup = async () => {
+      logger.debug(`Closing stdio transport for server "${serverName}"`);
+      await transport.close();
+    };
+
+    this.cleanupFunctions.push(cleanup);
+
+    // Load tools for this server
+    await this.loadToolsForServer(serverName, client);
+  }
+
+  /**
+   * Set up stdio restart handling
+   */
+  private setupStdioRestart(
+    serverName: string,
+    transport: StdioClientTransport,
+    connection: StdioConnection,
+    restart: NonNullable<StdioConnection['restart']>
+  ): void {
+    const originalOnClose = transport.onclose;
+    transport.onclose = async () => {
+      if (originalOnClose) {
+        await originalOnClose();
+      }
+
+      // Only attempt restart if we haven't cleaned up
+      if (this.clients.has(serverName)) {
+        logger.info(`Process for server "${serverName}" exited, attempting to restart...`);
+        await this.attemptReconnect(serverName, connection, restart.maxAttempts, restart.delayMs);
+      }
+    };
+  }
+
+  /**
+   * Initialize an SSE connection
+   */
+  private async initializeSSEConnection(
+    serverName: string,
+    connection: SSEConnection
+  ): Promise<void> {
+    const { url, headers, useNodeEventSource, reconnect } = connection;
+
+    logger.debug(`Creating SSE transport for server "${serverName}" with URL: ${url}`);
+
+    try {
+      const transport = await this.createSSETransport(serverName, url, headers, useNodeEventSource);
+      this.transportInstances.set(serverName, transport);
+
+      const client = new Client({
+        name: 'langchain-mcp-adapter',
+        version: '0.1.0',
+      });
+
+      try {
+        await client.connect(transport);
+
+        // Set up auto-reconnect if configured
+        if (reconnect?.enabled) {
+          this.setupSSEReconnect(serverName, transport, connection, reconnect);
+        }
+      } catch (error) {
+        throw new MCPClientError(
+          `Failed to connect to SSE server "${serverName}": ${error}`,
+          serverName
+        );
+      }
+
+      this.clients.set(serverName, client);
+
+      const cleanup = async () => {
+        logger.debug(`Closing SSE transport for server "${serverName}"`);
+        await transport.close();
+      };
+
+      this.cleanupFunctions.push(cleanup);
+
+      // Load tools for this server
+      await this.loadToolsForServer(serverName, client);
+    } catch (error) {
+      throw new MCPClientError(
+        `Failed to create SSE transport for server "${serverName}": ${error}`,
+        serverName
+      );
+    }
+  }
+
+  /**
+   * Create an SSE transport with appropriate EventSource implementation
+   */
+  private async createSSETransport(
+    serverName: string,
+    url: string,
+    headers?: Record<string, string>,
+    useNodeEventSource?: boolean
+  ): Promise<SSEClientTransport> {
+    if (!headers) {
+      // Simple case - no headers, use default transport
+      return new SSEClientTransport(new URL(url));
+    }
+
+    logger.debug(`Using custom headers for SSE transport to server "${serverName}"`);
+
+    // If useNodeEventSource is true, try Node.js implementations
+    if (useNodeEventSource) {
+      return await this.createNodeEventSourceTransport(serverName, url, headers);
+    }
+
+    // For browser environments, use the basic requestInit approach
+    logger.debug(
+      `Using browser EventSource for server "${serverName}". Headers may not be applied correctly.`
+    );
+    logger.debug(
+      `For better headers support in browsers, consider using a custom SSE implementation.`
+    );
+
+    return new SSEClientTransport(new URL(url), {
+      requestInit: { headers },
+      eventSourceInit: { headers }, // Added for test compatibility
+    });
+  }
+
+  /**
+   * Create an EventSource transport for Node.js environments
+   */
+  private async createNodeEventSourceTransport(
+    serverName: string,
+    url: string,
+    headers: Record<string, string>
+  ): Promise<SSEClientTransport> {
+    // First try to use extended-eventsource which has better headers support
+    try {
+      const ExtendedEventSourceModule = await import('extended-eventsource');
+      const ExtendedEventSource = ExtendedEventSourceModule.EventSource;
+
+      logger.debug(`Using Extended EventSource for server "${serverName}"`);
+      logger.debug(`Setting headers for Extended EventSource: ${JSON.stringify(headers)}`);
+
+      // Override the global EventSource with the extended implementation
+      (globalThis as any).EventSource = ExtendedEventSource;
+
+      // For Extended EventSource, create the SSE transport
+      return new SSEClientTransport(new URL(url), {
+        // Pass empty options for test compatibility
+        eventSourceInit: {},
+        requestInit: {},
+      });
+    } catch (extendedError) {
+      // Fall back to standard eventsource if extended-eventsource is not available
+      logger.debug(
+        `Extended EventSource not available, falling back to standard EventSource: ${extendedError}`
+      );
+
+      try {
+        // Dynamically import the eventsource package
+        const EventSourceModule = await import('eventsource');
+        const EventSource = EventSourceModule.default;
+
+        logger.debug(`Using Node.js EventSource for server "${serverName}"`);
+        logger.debug(`Setting headers for EventSource: ${JSON.stringify(headers)}`);
+
+        // Override the global EventSource with the Node.js implementation
+        (globalThis as any).EventSource = EventSource;
+
+        // Create transport with headers correctly configured for Node.js EventSource
+        return new SSEClientTransport(new URL(url), {
+          // Pass the headers to both eventSourceInit and requestInit for compatibility
+          eventSourceInit: { headers },
+          requestInit: { headers },
+        });
+      } catch (nodeError) {
+        logger.warn(
+          `Failed to load EventSource packages for server "${serverName}". Headers may not be applied to SSE connection: ${nodeError}`
+        );
+
+        // Last resort fallback
+        return new SSEClientTransport(new URL(url), {
+          requestInit: { headers },
+          eventSourceInit: { headers },
+        });
+      }
+    }
+  }
+
+  /**
+   * Set up SSE reconnect handling
+   */
+  private setupSSEReconnect(
+    serverName: string,
+    transport: SSEClientTransport,
+    connection: SSEConnection,
+    reconnect: NonNullable<SSEConnection['reconnect']>
+  ): void {
+    const originalOnClose = transport.onclose;
+    transport.onclose = async () => {
+      if (originalOnClose) {
+        await originalOnClose();
+      }
+
+      // Only attempt reconnect if we haven't cleaned up
+      if (this.clients.has(serverName)) {
+        logger.info(`SSE connection for server "${serverName}" closed, attempting to reconnect...`);
+        await this.attemptReconnect(
+          serverName,
+          connection,
+          reconnect.maxAttempts,
+          reconnect.delayMs
+        );
+      }
+    };
+  }
+
+  /**
+   * Load tools for a specific server
+   */
+  private async loadToolsForServer(serverName: string, client: Client): Promise<void> {
+    try {
+      logger.debug(`Loading tools for server "${serverName}"...`);
+      const tools = await loadMcpTools(client);
+      this.serverNameToTools.set(serverName, tools);
+      logger.info(`Successfully loaded ${tools.length} tools from server "${serverName}"`);
+    } catch (error) {
+      logger.error(`Failed to load tools from server "${serverName}": ${error}`);
+      // Continue even if tool loading fails - the connection is still established
+    }
   }
 
   /**
@@ -603,6 +593,9 @@ export class MultiServerMCPClient {
     let connected = false;
     let attempts = 0;
 
+    // Clean up previous connection resources
+    this.cleanupServerResources(serverName);
+
     while (!connected && (maxAttempts === undefined || attempts < maxAttempts)) {
       attempts++;
       logger.info(
@@ -615,36 +608,17 @@ export class MultiServerMCPClient {
           await new Promise(resolve => setTimeout(resolve, delayMs));
         }
 
-        // Create a new connection
-        const newConnections: Record<string, Connection> = {
-          [serverName]: connection,
-        };
-
-        // Store the previous connections
-        const previousConnections = this.connections;
-
-        // Set the new connection
-        this.connections = newConnections;
-
-        // Initialize just this connection
-        const oldTransportInstances = new Map(this.transportInstances);
-        this.transportInstances.delete(serverName);
-
-        // Initialize the connection
-        await this.initializeConnections();
+        // Initialize just this connection based on its type
+        if (connection.transport === 'stdio') {
+          await this.initializeStdioConnection(serverName, connection);
+        } else if (connection.transport === 'sse') {
+          await this.initializeSSEConnection(serverName, connection);
+        }
 
         // Check if connected
         if (this.clients.has(serverName)) {
           connected = true;
           logger.info(`Successfully reconnected to server "${serverName}"`);
-        }
-
-        // Restore the previous connections
-        if (previousConnections) {
-          this.connections = {
-            ...previousConnections,
-            [serverName]: connection, // Update with the latest connection info
-          };
         }
       } catch (error) {
         logger.error(
@@ -654,23 +628,17 @@ export class MultiServerMCPClient {
     }
 
     if (!connected) {
-      this.handleReconnectionFailure(serverName, attempts);
+      logger.error(`Failed to reconnect to server "${serverName}" after ${attempts} attempts`);
     }
   }
 
   /**
-   * Handle the failure of reconnection attempts.
-   *
-   * @param serverName - The name of the server that failed to reconnect
-   * @param attempts - The number of attempts made
-   * @private
+   * Clean up resources for a specific server
    */
-  private handleReconnectionFailure(serverName: string, attempts: number): void {
-    logger.error(`Failed to reconnect to server "${serverName}" after ${attempts} attempts`);
-    // Could implement additional failure handling here, such as:
-    // - Notify a monitoring service
-    // - Try an alternative server
-    // - Implement exponential backoff for future reconnection attempts
+  private cleanupServerResources(serverName: string): void {
+    this.clients.delete(serverName);
+    this.serverNameToTools.delete(serverName);
+    this.transportInstances.delete(serverName);
   }
 
   /**
