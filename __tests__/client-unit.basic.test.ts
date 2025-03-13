@@ -81,6 +81,19 @@ jest.mock('@dmitryrechkin/json-schema-to-zod', () => {
 jest.mock('fs');
 jest.mock('path');
 
+// Mock the logger
+jest.mock('../src/logger.js', () => {
+  return {
+    __esModule: true,
+    default: {
+      info: jest.fn(),
+      warn: jest.fn(),
+      error: jest.fn(),
+      debug: jest.fn(),
+    },
+  };
+});
+
 // Create placeholder mocks that will be replaced in beforeEach
 jest.mock('@modelcontextprotocol/sdk/client/sse.js', () => ({
   SSEClientTransport: jest.fn(),
