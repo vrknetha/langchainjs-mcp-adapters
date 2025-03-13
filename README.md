@@ -339,7 +339,7 @@ MIT
 
 ## Acknowledgements
 
-Big thanks to @vrknetha, @cawstudios for the initial implementation!
+Big thanks to [@vrknetha](https://github.com/vrknetha), [@cawstudios](https://caw.tech)  for the initial implementation!
 
 ## Contributing
 
