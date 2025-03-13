@@ -107,6 +107,102 @@ export class MultiServerMCPClient {
   constructor(connections?: Record<string, any>) {
     if (connections) {
       this.connections = this.processConnections(connections);
+    } else {
+      // Try to load from default mcp.json if no connections are provided
+      this.tryLoadDefaultConfig();
+    }
+  }
+
+  /**
+   * Try to load the default configuration file (mcp.json) from the root directory
+   */
+  private tryLoadDefaultConfig(): void {
+    try {
+      const defaultConfigPath = path.join(process.cwd(), 'mcp.json');
+      if (fs.existsSync(defaultConfigPath)) {
+        logger.info(`Found default configuration at ${defaultConfigPath}, loading automatically`);
+        const config = this.loadConfigFromFile(defaultConfigPath);
+        this.connections = this.processConnections(config.servers);
+      } else {
+        logger.debug('No default mcp.json found in root directory');
+      }
+    } catch (error) {
+      logger.warn(`Failed to load default configuration: ${error}`);
+      // Do not throw here, just continue with no configs
+    }
+  }
+
+  /**
+   * Load a configuration from a file
+   *
+   * @param configPath - Path to the configuration file
+   * @returns The parsed configuration
+   */
+  private loadConfigFromFile(configPath: string): MCPConfig {
+    const configData = fs.readFileSync(configPath, 'utf8');
+    const config = JSON.parse(configData);
+
+    // Validate that config has a servers property
+    if (!config || typeof config !== 'object' || !('servers' in config)) {
+      logger.error(`Invalid MCP configuration from ${configPath}: missing 'servers' property`);
+      throw new MCPClientError(`Invalid MCP configuration: missing 'servers' property`);
+    }
+
+    // Process environment variables in the configuration
+    this.processEnvVarsInConfig(config.servers);
+
+    return config;
+  }
+
+  /**
+   * Process environment variables in configuration
+   * Replaces ${ENV_VAR} with the actual environment variable value
+   *
+   * @param servers - The servers configuration object
+   */
+  private processEnvVarsInConfig(servers: Record<string, any>): void {
+    for (const [serverName, config] of Object.entries(servers)) {
+      if (typeof config !== 'object' || config === null) continue;
+
+      // Process env object if it exists
+      if (config.env && typeof config.env === 'object') {
+        for (const [key, value] of Object.entries(config.env)) {
+          if (typeof value === 'string' && value.startsWith('${') && value.endsWith('}')) {
+            const envVar = value.slice(2, -1);
+            const envValue = process.env[envVar];
+            if (envValue) {
+              config.env[key] = envValue;
+            } else {
+              logger.warn(`Environment variable ${envVar} not found for server "${serverName}"`);
+            }
+          }
+        }
+      }
+
+      // Process any other string properties recursively
+      this.processEnvVarsRecursively(config);
+    }
+  }
+
+  /**
+   * Process environment variables recursively in an object
+   *
+   * @param obj - The object to process
+   */
+  private processEnvVarsRecursively(obj: any): void {
+    if (typeof obj !== 'object' || obj === null) return;
+
+    for (const [key, value] of Object.entries(obj)) {
+      if (typeof value === 'string' && value.startsWith('${') && value.endsWith('}')) {
+        const envVar = value.slice(2, -1);
+        const envValue = process.env[envVar];
+        if (envValue) {
+          obj[key] = envValue;
+        }
+      } else if (typeof value === 'object' && value !== null && key !== 'env') {
+        // Skip env object as it's handled separately
+        this.processEnvVarsRecursively(value);
+      }
     }
   }
 
@@ -250,17 +346,21 @@ export class MultiServerMCPClient {
    */
   static fromConfigFile(configPath: string): MultiServerMCPClient {
     try {
-      const configData = fs.readFileSync(configPath, 'utf8');
-      const config = JSON.parse(configData);
+      const client = new MultiServerMCPClient();
+      const config = client.loadConfigFromFile(configPath);
 
-      // Validate that config has a servers property
-      if (!config || typeof config !== 'object' || !('servers' in config)) {
-        logger.error(`Invalid MCP configuration from ${configPath}: missing 'servers' property`);
-        throw new MCPClientError(`Invalid MCP configuration: missing 'servers' property`);
+      // Merge with existing connections if any
+      if (client.connections) {
+        client.connections = {
+          ...client.connections,
+          ...client.processConnections(config.servers),
+        };
+      } else {
+        client.connections = client.processConnections(config.servers);
       }
 
       logger.info(`Loaded MCP configuration from ${configPath}`);
-      return new MultiServerMCPClient(config.servers);
+      return client;
     } catch (error) {
       logger.error(`Failed to load MCP configuration from ${configPath}: ${error}`);
       throw new MCPClientError(`Failed to load MCP configuration: ${error}`);
@@ -788,5 +888,72 @@ export class MultiServerMCPClient {
 
     this.connections = connections;
     return this.initializeConnections();
+  }
+
+  /**
+   * Add configuration from a JSON file to the existing configuration.
+   *
+   * @param configPath - Path to the configuration file
+   * @returns This client instance for method chaining
+   * @throws {MCPClientError} If the configuration file cannot be loaded or parsed
+   */
+  addConfigFromFile(configPath: string): MultiServerMCPClient {
+    try {
+      const config = this.loadConfigFromFile(configPath);
+
+      // Merge with existing connections if any
+      if (this.connections) {
+        this.connections = {
+          ...this.connections,
+          ...this.processConnections(config.servers),
+        };
+      } else {
+        this.connections = this.processConnections(config.servers);
+      }
+
+      logger.info(`Added MCP configuration from ${configPath}`);
+      return this;
+    } catch (error) {
+      logger.error(`Failed to add MCP configuration from ${configPath}: ${error}`);
+      throw new MCPClientError(`Failed to add MCP configuration: ${error}`);
+    }
+  }
+
+  /**
+   * Add server configurations directly to the existing configuration.
+   *
+   * @param connections - Server connections to add
+   * @returns This client instance for method chaining
+   */
+  addConnections(connections: Record<string, any>): MultiServerMCPClient {
+    const processedConnections = this.processConnections(connections);
+
+    // Merge with existing connections if any
+    if (this.connections) {
+      this.connections = {
+        ...this.connections,
+        ...processedConnections,
+      };
+    } else {
+      this.connections = processedConnections;
+    }
+
+    logger.info(`Added ${Object.keys(processedConnections).length} connections to client`);
+    return this;
+  }
+
+  /**
+   * Get the server name for a specific tool.
+   *
+   * @param toolName - The name of the tool
+   * @returns The server name or undefined if the tool is not found
+   */
+  getServerForTool(toolName: string): string | undefined {
+    for (const [serverName, tools] of this.serverNameToTools.entries()) {
+      if (tools.some(tool => tool.name === toolName)) {
+        return serverName;
+      }
+    }
+    return undefined;
   }
 }

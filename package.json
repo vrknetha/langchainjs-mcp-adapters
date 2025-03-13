@@ -20,7 +20,13 @@
     "lint": "eslint --ignore-pattern 'dist/**' .",
     "lint:fix": "eslint --ignore-pattern 'dist/**' . --fix",
     "format": "prettier --write \"src/**/*.ts\" \"examples/**/*.ts\"",
-    "prepare": "husky"
+    "prepare": "husky",
+    "build:examples": "tsc -p tsconfig.examples.json",
+    "example:default": "npm run build:examples && node dist/examples/firecrawl_default_config_example.js",
+    "example:custom": "npm run build:examples && node dist/examples/firecrawl_custom_config_example.js",
+    "example:multiple": "npm run build:examples && node dist/examples/firecrawl_multiple_servers_example.js",
+    "example:mixed": "npm run build:examples && node dist/examples/firecrawl_mixed_loading_example.js",
+    "example:enhanced": "npm run build:examples && node dist/examples/firecrawl_enhanced_config_example.js"
   },
   "lint-staged": {
     "*.{js,ts}": [

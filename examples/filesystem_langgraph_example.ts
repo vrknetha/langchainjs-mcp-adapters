@@ -195,16 +195,18 @@ For reading multiple files, you can use the read_multiple_files tool.`;
     }
   } catch (error) {
     console.error('Error:', error);
+    process.exit(1); // Exit with error code
   } finally {
-    // Close all client connections
     if (client) {
       await client.close();
-      console.log('\nClosed all connections');
+      console.log('Closed all MCP connections');
     }
 
-    // Exit process with successful code
-    console.log('Example execution completed successfully.');
-    setTimeout(() => process.exit(0), 100); // Small delay to ensure logs are printed
+    // Exit process after a short delay to allow for cleanup
+    setTimeout(() => {
+      console.log('Example completed, exiting process.');
+      process.exit(0);
+    }, 500);
   }
 }
 

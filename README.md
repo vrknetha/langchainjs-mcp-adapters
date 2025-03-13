@@ -93,47 +93,31 @@ if __name__ == "__main__":
 ### Client
 
 ```ts
-import { Client } from "@modelcontextprotocol/sdk/client/index.js";
-import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
-import { ChatOpenAI } from "@langchain/openai";
-import { createReactAgent } from "@langchain/langgraph/prebuilt";
-import { loadMcpTools } from "@langchain/mcp-adapters"
+import { MultiServerMCPClient } from '@langchain/mcp-adapters';
+import { ChatOpenAI } from '@langchain/openai';
+import { createReactAgent } from '@langchain/langgraph/prebuilt';
 
 // Initialize the ChatOpenAI model
-const model = new ChatOpenAI({ modelName: "gpt-4" });
+const model = new ChatOpenAI({ modelName: 'gpt-4' });
 
-// Create transport for stdio connection
-const transport = new StdioClientTransport({
-  command: "python",
-  args: ["math_server.py"]
-});
+// Create client and connect to server using the adapter
+const client = new MultiServerMCPClient();
+await client.connectToServerViaStdio('math-server', 'python', ['math_server.py']);
 
-// Initialize the client
-const client = new Client(
-  {
-    name: "math-client",
-    version: "1.0.0"
-  }
-);
+// Get tools
+const tools = client.getTools();
 
 try {
-  // Connect to the transport
-  await client.connect(transport);
-
-  // Get tools
-  const tools = await loadMcpTools(client);
-
   // Create and run the agent
   const agent = createReactAgent({ llm: model, tools });
   const agentResponse = await agent.invoke({
-    messages: [{role: "user", content: "what's (3 + 5) x 12?"}]
+    messages: [{ role: 'user', content: "what's (3 + 5) x 12?" }],
   });
   console.log(agentResponse);
-
-} catch(e) {
-  console.error(e)
+} catch (e) {
+  console.error(e);
 } finally {
-  // Clean up connection
+  // Clean up connections
   await client.close();
 }
 ```
@@ -201,10 +185,14 @@ const agent = createReactAgent({
 });
 
 // Run the agent
-const mathResponse = await agent.invoke({messages: [{role: "user", content: "what's (3 + 5) x 12?"}]})
-const weatherResponse = await agent.invoke({messages: [{role: "user", content: "what is the weather in nyc?"}]})
+const mathResponse = await agent.invoke({
+  messages: [{ role: 'user', content: "what's (3 + 5) x 12?" }],
+});
+const weatherResponse = await agent.invoke({
+  messages: [{ role: 'user', content: 'what is the weather in nyc?' }],
+});
 
-await client.close()
+await client.close();
 ```
 
 Below are more detailed examples of how to configure `MultiServerMCPClient`.
@@ -296,6 +284,82 @@ await client.initializeConnections();
 const tools = client.getTools();
 ```
 
+## Enhanced Configuration Loading
+
+LangChainJS-MCP-Adapters now supports enhanced configuration loading with the following features:
+
+### Automatic Default Configuration
+
+The client will automatically look for a `mcp.json` file in the root directory if no explicit configuration is provided:
+
+```typescript
+// Automatically loads from mcp.json if it exists
+const client = new MultiServerMCPClient();
+await client.initializeConnections();
+```
+
+### Multiple Configuration Sources
+
+You can load configurations from multiple sources and combine them:
+
+```typescript
+// Start with default configuration (from mcp.json)
+const client = new MultiServerMCPClient();
+
+// Add configuration from another file
+client.addConfigFromFile('./custom-servers.json');
+
+// Add server configurations directly in code
+client.addConnections({
+  'inline-server': {
+    transport: 'stdio',
+    command: 'python',
+    args: ['./another_server.py'],
+  },
+});
+
+// Initialize all connections
+await client.initializeConnections();
+```
+
+### Environment Variable Substitution
+
+Configuration files support environment variable substitution using `${ENV_VAR}` syntax:
+
+```json
+{
+  "servers": {
+    "firecrawl": {
+      "transport": "stdio",
+      "command": "npx",
+      "args": ["-y", "firecrawl-mcp"],
+      "env": {
+        "API_KEY": "${FIRECRAWL_API_KEY}"
+      }
+    }
+  }
+}
+```
+
+### Server and Tool Management
+
+New utility methods make it easier to work with tools from different servers:
+
+```typescript
+// Get all tools from all servers
+const allTools = client.getTools();
+
+// Get tools from specific servers
+const mathTools = client.getTools(['math']);
+
+// Find which server a tool belongs to
+const serverName = client.getServerForTool('firecrawl_search');
+```
+
+### Running Examples
+
+See the [examples directory](./examples) for complete examples of these features.
+
 ## Browser Environments
 
 When using in browsers:
@@ -339,7 +403,7 @@ MIT
 
 ## Acknowledgements
 
-Big thanks to [@vrknetha](https://github.com/vrknetha), [@cawstudios](https://caw.tech)  for the initial implementation!
+Big thanks to [@vrknetha](https://github.com/vrknetha), [@cawstudios](https://caw.tech) for the initial implementation!
 
 ## Contributing
 

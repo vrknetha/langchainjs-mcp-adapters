@@ -1,0 +1,11 @@
+{
+  "servers": {
+    "custom-server": {
+      "transport": "stdio",
+      "command": "python",
+      "args": [
+        "/Users/ravikiranvemula/Workdir/langchainjs-mcp-adapters/examples/weather_server.py"
+      ]
+    }
+  }
+}

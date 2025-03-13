@@ -8,6 +8,11 @@
     "weather": {
       "transport": "sse",
       "url": "http://localhost:8000/sse"
+    },
+    "firecrawl": {
+      "transport": "stdio",
+      "command": "npx",
+      "args": ["-y", "firecrawl-mcp"]
     }
   }
 }
