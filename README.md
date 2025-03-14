@@ -300,81 +300,169 @@ await client.initializeConnections();
 const tools = client.getTools();
 ```
 
-## Enhanced Configuration Loading
+## Enhanced Configuration Management
 
-LangChainJS-MCP-Adapters now supports enhanced configuration loading with the following features:
+LangChainJS-MCP-Adapters provides flexible and powerful configuration management capabilities:
 
 ### Automatic Default Configuration
 
-The client will automatically look for a `mcp.json` file in the root directory if no explicit configuration is provided:
+The client automatically looks for and loads a `mcp.json` file from the current working directory if no explicit configuration is provided:
 
 ```typescript
-// Automatically loads from mcp.json if it exists
+// This will automatically load from ./mcp.json if it exists
 const client = new MultiServerMCPClient();
 await client.initializeConnections();
 ```
 
-### Multiple Configuration Sources
+### Configuration Loading Options
 
-You can load configurations from multiple sources and combine them:
+There are multiple ways to load configurations:
 
 ```typescript
-// Start with default configuration (from mcp.json)
+// Method 1: Automatic default loading
+const client1 = new MultiServerMCPClient(); // Automatically checks for mcp.json
+
+// Method 2: From specified config file
+const client2 = MultiServerMCPClient.fromConfigFile('./config/custom-mcp.json');
+
+```
+
+### Combining Multiple Configuration Sources
+
+You can combine configurations from multiple sources - they will be merged rather than replaced:
+
+```typescript
+// Start with default configuration or empty if no mcp.json exists
 const client = new MultiServerMCPClient();
 
-// Add configuration from another file
-client.addConfigFromFile('./custom-servers.json');
+// Add another configuration file
+client.addConfigFromFile('./team1-servers.json');
 
-// Add server configurations directly in code
+// Add yet another configuration file
+client.addConfigFromFile('./team2-servers.json');
+
+// Add configurations directly in code
 client.addConnections({
-  'inline-server': {
+  'custom-server': {
     transport: 'stdio',
     command: 'python',
-    args: ['./another_server.py'],
+    args: ['./special_server.py'],
   },
 });
 
-// Initialize all connections
+// Initialize all connections from all sources
 await client.initializeConnections();
+```
+
+### Configuration Processing Order
+
+Configurations are processed in the order they are added:
+
+1. Constructor argument or automatic `mcp.json` (if present)
+2. Each `addConfigFromFile()` call in sequence
+3. Each `addConnections()` call in sequence
+
+If the same server name appears in multiple configurations, **the later configuration takes precedence**, allowing for overriding settings.
+
+### Direct Connection Methods
+
+For simple use cases, you can bypass configuration files entirely and connect to servers directly using the provided connection methods:
+
+```typescript
+const client = new MultiServerMCPClient();
+
+// Add a stdio connection
+await client.connectToServerViaStdio(
+  'math-server',
+  'python',
+  ['./math_server.py'],
+  // Optional environment variables
+  { PYTHONPATH: './lib' },
+  // Optional restart configuration
+  { enabled: true, maxAttempts: 3, delayMs: 2000 }
+);
+
+// Add an SSE connection
+await client.connectToServerViaSSE(
+  'remote-server',
+  'https://api.example.com/mcp/sse',
+  // Optional headers
+  { Authorization: 'Bearer token' },
+  // Optional Node.js EventSource flag
+  true,
+  // Optional reconnection configuration
+  { enabled: true, maxAttempts: 5, delayMs: 1000 }
+);
 ```
 
 ### Environment Variable Substitution
 
-Configuration files support environment variable substitution using `${ENV_VAR}` syntax:
+Configuration files support environment variable substitution using `${ENV_VAR}` syntax in both string values and environment variable objects:
 
 ```json
 {
   "servers": {
-    "firecrawl": {
+    "api-server": {
+      "transport": "sse",
+      "url": "https://${API_DOMAIN}/sse",
+      "headers": {
+        "Authorization": "Bearer ${API_TOKEN}"
+      }
+    },
+    "local-server": {
       "transport": "stdio",
-      "command": "npx",
-      "args": ["-y", "firecrawl-mcp"],
+      "command": "python",
+      "args": ["./server.py"],
       "env": {
-        "API_KEY": "${FIRECRAWL_API_KEY}"
+        "OPENAI_API_KEY": "${OPENAI_API_KEY}",
+        "DEBUG_LEVEL": "info"
       }
     }
   }
 }
 ```
 
-### Server and Tool Management
+### Configuration File Structure
 
-New utility methods make it easier to work with tools from different servers:
+Below is the complete schema for the configuration file:
 
-```typescript
-// Get all tools from all servers
-const allTools = client.getTools();
+```json
+{
+  "servers": {
+    "server-name": {
+      // For stdio transport (transport field is optional for stdio)
+      "transport": "stdio", // Optional for stdio, defaults to "stdio" if command and args are present
+      "command": "python",
+      "args": ["./server.py"],
+      "env": {
+        "ENV_VAR": "value"
+      },
+      "encoding": "utf-8",
+      "encodingErrorHandler": "strict",
+      "restart": {
+        "enabled": true,
+        "maxAttempts": 3,
+        "delayMs": 1000
+      },
 
-// Get tools from specific servers
-const mathTools = client.getTools(['math']);
-
-// Find which server a tool belongs to
-const serverName = client.getServerForTool('firecrawl_search');
+      // For SSE transport (transport field is required)
+      "transport": "sse",
+      "url": "http://localhost:8000/sse",
+      "headers": {
+        "Authorization": "Bearer token"
+      },
+      "useNodeEventSource": true,
+      "reconnect": {
+        "enabled": true,
+        "maxAttempts": 3,
+        "delayMs": 1000
+      }
+    }
+  }
+}
 ```
 
-### Running Examples
-
-See the [examples directory](./examples) for complete examples of these features.
+> **Note:** For stdio connections, the `transport` field is optional. If not specified, it defaults to 'stdio' when `command` and `args` are present.
 
 ## Browser Environments
 
