@@ -1,12 +1,3 @@
-// Mock problematic dependencies first
-jest.mock('@dmitryrechkin/json-schema-to-zod', () => {
-  return {
-    JSONSchemaToZod: {
-      convert: jest.fn().mockReturnValue({}),
-    },
-  };
-});
-
 // Mock fs module before imports
 jest.mock('fs', () => {
   // Create a map to store mock file contents

@@ -64,20 +64,6 @@ jest.mock('@modelcontextprotocol/sdk/client/index.js', () => {
   };
 });
 
-// Mock the json-schema-to-zod module
-jest.mock('@dmitryrechkin/json-schema-to-zod', () => {
-  // Import z using dynamic import to avoid ESM issues
-  return {
-    JSONSchemaToZod: {
-      convert: jest.fn().mockImplementation(() => {
-        // Return a simple schema
-        const z = jest.requireActual('zod');
-        return z.object({}).passthrough();
-      }),
-    },
-  };
-});
-
 jest.mock('fs');
 jest.mock('path');
 

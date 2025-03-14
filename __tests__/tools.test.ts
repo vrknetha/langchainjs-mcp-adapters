@@ -1,5 +1,5 @@
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
-import { convertMcpToolToLangchainTool, loadMcpTools } from '../src/tools.js';
+import { convertMcpToolToLangchainTool, loadMcpTools, ResponseFormat } from '../src/tools.js';
 import { z } from 'zod';
 
 // Create a mock client
@@ -96,6 +96,65 @@ describe('Simplified Tool Adapter Tests', () => {
       // Verify result (should only include text content)
       expect(result).toBe('Image caption');
     });
+
+    test('should return both text and non-text content with content_and_artifact format', async () => {
+      // Set up mock tool
+      const mcpTool = {
+        name: 'multiTool',
+        description: 'A tool that returns multiple content types',
+      };
+
+      // Set up mock response with mixed content
+      const mockImageContent = { type: 'image', url: 'http://example.com/image.jpg' };
+      mockClient.callTool.mockResolvedValueOnce({
+        content: [{ type: 'text', text: 'Here is your image' }, mockImageContent],
+      });
+
+      // Convert tool with content_and_artifact response format
+      const tool = convertMcpToolToLangchainTool(
+        mockClient as unknown as Client,
+        mcpTool,
+        undefined,
+        'content_and_artifact'
+      );
+
+      // Verify tool properties
+      console.log('Tool class:', tool.constructor.name);
+      console.log('Tool responseFormat:', (tool as any).responseFormat);
+
+      // Call the tool
+      const result = await tool.invoke({ input: 'test' });
+
+      // Debug the result
+      console.log('Result type:', typeof result);
+      console.log('Result:', JSON.stringify(result));
+      console.log('Is array:', Array.isArray(result));
+
+      // The result is the text content, as LangChain processes the array in the call method
+      expect(result).toBe('Here is your image');
+
+      // Set up a second mock response for the direct call test
+      mockClient.callTool.mockResolvedValueOnce({
+        content: [{ type: 'text', text: 'Here is your image' }, mockImageContent],
+      });
+
+      // Access the tool class implementation through the prototype chain
+      const toolPrototype = Object.getPrototypeOf(tool);
+      // Call the _call method directly with bound 'this' context
+      const directResult = await toolPrototype._call.call(tool, { input: 'test' });
+
+      expect(Array.isArray(directResult)).toBe(true);
+
+      const [textContent, nonTextContent] = directResult as [string, any[]];
+
+      // Check the text content
+      expect(textContent).toBe('Here is your image');
+
+      // Check the non-text content
+      expect(Array.isArray(nonTextContent)).toBe(true);
+      expect(nonTextContent.length).toBe(1);
+      expect(nonTextContent[0]).toEqual(mockImageContent);
+    });
   });
 
   describe('loadMcpTools', () => {
@@ -147,6 +206,50 @@ describe('Simplified Tool Adapter Tests', () => {
       expect(tools.length).toBe(2);
       expect(tools[0].name).toBe('tool1');
       expect(tools[1].name).toBe('tool2');
+    });
+
+    test('should load tools with specified response format', async () => {
+      // Set up mock response
+      mockClient.listTools.mockResolvedValueOnce({
+        tools: [{ name: 'tool1', description: 'Tool 1' }],
+      });
+
+      // Load tools with content_and_artifact response format
+      const tools = await loadMcpTools(mockClient as unknown as Client, 'content_and_artifact');
+
+      // Verify tool was loaded
+      expect(tools.length).toBe(1);
+      expect((tools[0] as any).responseFormat).toBe('content_and_artifact');
+
+      // Mock the call result to check response format handling
+      const mockImageContent = { type: 'image', url: 'http://example.com/image.jpg' };
+      mockClient.callTool.mockResolvedValueOnce({
+        content: [{ type: 'text', text: 'Image result' }, mockImageContent],
+      });
+
+      // Invoke the tool
+      const result = await tools[0].invoke({ test: 'input' });
+
+      // The result is the text content, as LangChain processes the array in the call method
+      expect(result).toBe('Image result');
+
+      // Set up a second mock response for the direct call test
+      mockClient.callTool.mockResolvedValueOnce({
+        content: [{ type: 'text', text: 'Image result' }, mockImageContent],
+      });
+
+      // Access the tool class implementation through the prototype chain
+      const toolPrototype = Object.getPrototypeOf(tools[0]);
+      // Call the _call method directly with bound 'this' context
+      const directResult = await toolPrototype._call.call(tools[0], { test: 'input' });
+
+      expect(Array.isArray(directResult)).toBe(true);
+
+      const [textContent, nonTextContent] = directResult as [string, any[]];
+
+      expect(textContent).toBe('Image result');
+      expect(nonTextContent.length).toBe(1);
+      expect(nonTextContent[0]).toEqual(mockImageContent);
     });
   });
 });
