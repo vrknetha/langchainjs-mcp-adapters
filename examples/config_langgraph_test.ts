@@ -12,12 +12,6 @@ import dotenv from 'dotenv';
 import logger from '../src/logger.js';
 import { StateGraph, END, START, MessagesAnnotation } from '@langchain/langgraph';
 import { ToolNode } from '@langchain/langgraph/prebuilt';
-import {
-  ChatPromptTemplate,
-  SystemMessagePromptTemplate,
-  HumanMessagePromptTemplate,
-  MessagesPlaceholder,
-} from '@langchain/core/prompts';
 import { HumanMessage, AIMessage, SystemMessage } from '@langchain/core/messages';
 import { StructuredToolInterface } from '@langchain/core/tools';
 import { z } from 'zod';
@@ -47,13 +41,13 @@ async function runConfigTest() {
 
     // Load the auth configuration to verify it parses correctly
     const authConfig = JSON.parse(fs.readFileSync(authConfigPath, 'utf-8'));
-    console.log('Successfully parsed auth_mcp.json with the following servers:');
-    console.log('Servers:', Object.keys(authConfig.servers));
+    logger.info('Successfully parsed auth_mcp.json with the following servers:');
+    logger.info('Servers:', Object.keys(authConfig.servers));
 
     // Print auth headers (redacted for security) to verify they're present
     Object.entries(authConfig.servers).forEach(([serverName, serverConfig]: [string, any]) => {
       if (serverConfig.headers) {
-        console.log(
+        logger.info(
           `Server ${serverName} has headers:`,
           Object.keys(serverConfig.headers).map(key => `${key}: ***`)
         );
@@ -69,8 +63,8 @@ async function runConfigTest() {
     }
 
     const complexConfig = JSON.parse(fs.readFileSync(complexConfigPath, 'utf-8'));
-    console.log('Successfully parsed complex_mcp.json with the following servers:');
-    console.log('Servers:', Object.keys(complexConfig.servers));
+    logger.info('Successfully parsed complex_mcp.json with the following servers:');
+    logger.info('Servers:', Object.keys(complexConfig.servers));
 
     // Step 3: Connect directly to the math server using explicit path
     logger.info('Connecting to math server directly...');
@@ -96,7 +90,7 @@ async function runConfigTest() {
 
     // Log the names of available tools
     const toolNames = mcpTools.map(tool => tool.name);
-    console.log('Available tools:', toolNames.join(', '));
+    logger.info('Available tools:', toolNames.join(', '));
 
     // Create an OpenAI model for the agent
     const model = new ChatOpenAI({
@@ -109,7 +103,7 @@ async function runConfigTest() {
 
     // Define the function that calls the model
     const llmNode = async (state: typeof MessagesAnnotation.State) => {
-      console.log('Calling LLM with messages:', state.messages.length);
+      logger.info('Calling LLM with messages:', state.messages.length);
       const response = await model.invoke(state.messages);
       return { messages: [response] };
     };
@@ -132,12 +126,12 @@ async function runConfigTest() {
       // If the last message has tool calls, we need to execute the tools
       const aiMessage = lastMessage as AIMessage;
       if (aiMessage.tool_calls && aiMessage.tool_calls.length > 0) {
-        console.log('Tool calls detected, routing to tools node');
+        logger.info('Tool calls detected, routing to tools node');
         return 'tools' as any;
       }
 
       // If there are no tool calls, we're done
-      console.log('No tool calls, ending the workflow');
+      logger.info('No tool calls, ending the workflow');
       return END as any;
     });
 
@@ -154,7 +148,7 @@ async function runConfigTest() {
 
     // Run each test query
     for (const query of testQueries) {
-      console.log(`\n=== Running query: "${query}" ===`);
+      logger.info(`\n=== Running query: "${query}" ===`);
 
       try {
         // Create initial messages with a system message and the user query
@@ -171,19 +165,19 @@ async function runConfigTest() {
         // Get the last AI message as the response
         const lastMessage = result.messages.filter(message => message._getType() === 'ai').pop();
 
-        console.log(`\nFinal Answer: ${lastMessage?.content}`);
+        logger.info(`\nFinal Answer: ${lastMessage?.content}`);
       } catch (error) {
-        console.error(`Error processing query "${query}":`, error);
+        logger.error(`Error processing query "${query}":`, error);
       }
     }
 
     // Close all connections
-    console.log('\nClosing connections...');
+    logger.info('\nClosing connections...');
     await client.close();
 
-    console.log('Test completed successfully');
+    logger.info('Test completed successfully');
   } catch (error) {
-    console.error('Error running test:', error);
+    logger.error('Error running test:', error);
   }
 }
 
