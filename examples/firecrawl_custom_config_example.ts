@@ -1,21 +1,19 @@
 /**
  * Firecrawl MCP Server Example - Custom Configuration
  *
- * This example demonstrates using the Firecrawl MCP server with a custom configuration file.
- * It creates a new configuration file specifically for the Firecrawl server and uses it to
- * initialize the client.
+ * This example demonstrates loading from a custom configuration file
+ * And getting tools from the Firecrawl server with automatic initialization
  */
 
 import { ChatOpenAI } from '@langchain/openai';
-import { StateGraph, END, START, MessagesAnnotation } from '@langchain/langgraph';
-import { ToolNode } from '@langchain/langgraph/prebuilt';
-import { HumanMessage, AIMessage, BaseMessage } from '@langchain/core/messages';
+import { HumanMessage } from '@langchain/core/messages';
 import { StructuredToolInterface } from '@langchain/core/tools';
 import { z } from 'zod';
 import dotenv from 'dotenv';
-import fs from 'fs';
-import path from 'path';
+import * as fs from 'fs';
+import * as path from 'path';
 import logger from '../src/logger.js';
+import { createReactAgent } from '@langchain/langgraph/prebuilt';
 
 // MCP client imports
 import { MultiServerMCPClient } from '../src/index.js';
@@ -23,159 +21,117 @@ import { MultiServerMCPClient } from '../src/index.js';
 // Load environment variables from .env file
 dotenv.config();
 
-// Path for our custom config file
-const customConfigPath = path.join(process.cwd(), 'examples', 'firecrawl_config.json');
-
 /**
- * Create a custom configuration file for the Firecrawl server
+ * Create a custom configuration file for Firecrawl
  */
-function createCustomConfigFile() {
-  const configContent = {
+function createConfigFile(): string {
+  const configPath = path.join(process.cwd(), 'examples', 'firecrawl_config.json');
+
+  // Configuration for the Firecrawl server
+  const config = {
     servers: {
       firecrawl: {
-        transport: 'stdio',
-        command: 'npx',
-        args: ['-y', 'firecrawl-mcp'],
-        env: {
-          FIRECRAWL_API_KEY: process.env.FIRECRAWL_API_KEY || '',
-          // Optional configurations
-          FIRECRAWL_RETRY_MAX_ATTEMPTS: '5',
-          FIRECRAWL_RETRY_INITIAL_DELAY: '2000',
-          FIRECRAWL_RETRY_MAX_DELAY: '30000',
-          FIRECRAWL_RETRY_BACKOFF_FACTOR: '3',
+        transport: 'sse',
+        url: process.env.FIRECRAWL_SERVER_URL || 'http://localhost:8000/v1/mcp',
+        headers: {
+          Authorization: `Bearer ${process.env.FIRECRAWL_API_KEY || 'demo'}`,
         },
       },
     },
   };
 
-  fs.writeFileSync(customConfigPath, JSON.stringify(configContent, null, 2));
-  logger.info(`Created custom configuration file at ${customConfigPath}`);
+  // Write the configuration to a file
+  fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
+
+  return configPath;
 }
 
 /**
- * Example demonstrating how to use Firecrawl MCP tools with LangGraph agent flows
- * This example creates and loads a custom configuration file
+ * Example demonstrating loading from custom configuration
  */
 async function runExample() {
   let client: MultiServerMCPClient | null = null;
 
+  // Add a timeout to prevent the process from hanging indefinitely
+  const timeout = setTimeout(() => {
+    console.error('Example timed out after 30 seconds');
+    process.exit(1);
+  }, 30000);
+
   try {
-    // Create the custom configuration file first
-    createCustomConfigFile();
+    // Create a custom configuration file
+    const configPath = createConfigFile();
+    logger.info(`Created custom configuration file at: ${configPath}`);
 
+    // Initialize the MCP client with the custom configuration
     logger.info('Initializing MCP client from custom configuration file...');
+    client = MultiServerMCPClient.fromConfigFile(configPath);
 
-    // Create a client from the custom configuration file
-    client = MultiServerMCPClient.fromConfigFile(customConfigPath);
-
-    // Initialize connections to all servers in the configuration
+    // Connect to the servers
     await client.initializeConnections();
     logger.info('Connected to servers from custom configuration');
 
-    // Get all tools from all servers
+    // Get Firecrawl tools specifically
     const mcpTools = client.getTools() as StructuredToolInterface<z.ZodObject<any>>[];
-
-    if (mcpTools.length === 0) {
-      throw new Error('No tools found');
-    }
-
-    logger.info(
-      `Loaded ${mcpTools.length} MCP tools: ${mcpTools.map(tool => tool.name).join(', ')}`
+    const firecrawlTools = mcpTools.filter(
+      tool => client!.getServerForTool(tool.name) === 'firecrawl'
     );
 
-    // Create an OpenAI model and bind the tools
+    if (firecrawlTools.length === 0) {
+      throw new Error('No Firecrawl tools found');
+    }
+
+    logger.info(`Found ${firecrawlTools.length} Firecrawl tools`);
+
+    // Initialize the LLM
     const model = new ChatOpenAI({
-      modelName: process.env.OPENAI_MODEL_NAME || 'gpt-4o',
+      modelName: process.env.OPENAI_MODEL_NAME || 'gpt-3.5-turbo',
       temperature: 0,
-    }).bindTools(mcpTools);
-
-    // Create a tool node for the LangGraph
-    const toolNode = new ToolNode(mcpTools);
-
-    // ================================================
-    // Create a LangGraph agent flow
-    // ================================================
-    console.log('\n=== CREATING LANGGRAPH AGENT FLOW ===');
-
-    // Define the function that calls the model
-    const llmNode = async (state: typeof MessagesAnnotation.State) => {
-      console.log('Calling LLM with messages:', state.messages.length);
-      const response = await model.invoke(state.messages);
-      return { messages: [response] };
-    };
-
-    // Create a new graph with MessagesAnnotation
-    const workflow = new StateGraph(MessagesAnnotation);
-
-    // Add the nodes to the graph
-    workflow.addNode('llm', llmNode);
-    workflow.addNode('tools', toolNode);
-
-    // Add edges - these define how nodes are connected
-    workflow.addEdge(START as any, 'llm' as any);
-    workflow.addEdge('tools' as any, 'llm' as any);
-
-    // Conditional routing to end or continue the tool loop
-    workflow.addConditionalEdges('llm' as any, state => {
-      const lastMessage = state.messages[state.messages.length - 1];
-      const aiMessage = lastMessage as AIMessage;
-
-      if (aiMessage.tool_calls && aiMessage.tool_calls.length > 0) {
-        console.log('Tool calls detected, routing to tools node');
-        return 'tools' as any;
-      }
-
-      console.log('No tool calls, ending the workflow');
-      return END as any;
     });
 
-    // Compile the graph
-    const app = workflow.compile();
+    // Create a React agent using LangGraph's createReactAgent
+    const agent = createReactAgent({
+      llm: model,
+      tools: firecrawlTools,
+    });
 
-    // Define a query for testing the search functionality
-    const query = 'Search for information about "climate change solutions" and provide a summary';
+    // Define a query for testing Firecrawl
+    const query =
+      'Find the latest news about artificial intelligence and summarize the top 3 stories';
 
-    // Test the LangGraph agent with the query
-    console.log('\n=== RUNNING LANGGRAPH AGENT ===');
-    console.log(`\nQuery: ${query}`);
+    logger.info(`Running agent with query: ${query}`);
 
-    // Run the LangGraph agent with the query
-    const result = await app.invoke({
+    // Run the agent
+    const result = await agent.invoke({
       messages: [new HumanMessage(query)],
     });
 
-    // Display the result and all messages in the final state
-    console.log(`\nFinal Messages (${result.messages.length}):`);
-    result.messages.forEach((msg: BaseMessage, i: number) => {
-      const msgType = 'type' in msg ? msg.type : 'unknown';
-      console.log(
-        `[${i}] ${msgType}: ${typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content)}`
-      );
-    });
+    logger.info('Agent execution completed');
+    console.log('\nFinal output:');
+    console.log(result);
 
-    const finalMessage = result.messages[result.messages.length - 1];
-    console.log(`\nResult: ${finalMessage.content}`);
+    // Clear the timeout since the example completed successfully
+    clearTimeout(timeout);
+
+    // Clean up the temporary configuration file
+    fs.unlinkSync(configPath);
+    logger.info('Removed temporary configuration file');
   } catch (error) {
-    console.error('Error:', error);
-    process.exit(1); // Exit with error code
+    logger.error('Error in example:', error);
   } finally {
-    // Close all client connections
+    // Close all MCP connections
     if (client) {
+      logger.info('Closing all MCP connections...');
       await client.close();
-      console.log('\nClosed all connections');
+      logger.info('All MCP connections closed');
     }
 
-    // Clean up our custom config file
-    if (fs.existsSync(customConfigPath)) {
-      fs.unlinkSync(customConfigPath);
-      logger.info(`Cleaned up custom configuration file at ${customConfigPath}`);
-    }
+    // Clear the timeout if it hasn't fired yet
+    clearTimeout(timeout);
 
-    // Exit process after a short delay to allow for cleanup
-    setTimeout(() => {
-      console.log('Example completed, exiting process.');
-      process.exit(0);
-    }, 500);
+    // Complete the example
+    logger.info('Example execution completed');
+    process.exit(0);
   }
 }
 

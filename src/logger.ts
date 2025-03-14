@@ -19,15 +19,10 @@ const levels = {
 };
 
 /**
- * Determine the appropriate log level based on the environment.
- * In development, we want to see all logs.
- * In production, we only want to see warnings and errors.
+ * By default, logging is set to the silent level unless explicitly enabled
+ * This makes logging opt-in rather than enabled by default
  */
-const level = () => {
-  const env = process.env.NODE_ENV || 'development';
-  const isDevelopment = env === 'development';
-  return isDevelopment ? 'debug' : 'warn';
-};
+const defaultLevel = 'silent';
 
 /**
  * Define colors for each log level to improve readability in the console.
@@ -100,12 +95,30 @@ try {
 
 /**
  * Create the logger instance with our configuration.
+ * By default, logging is disabled (silent) but can be enabled by setting the level.
  */
 const logger = winston.createLogger({
-  level: level(),
+  level: defaultLevel, // Start with silent logging by default
   levels,
   format,
   transports,
 });
+
+/**
+ * Enable logging at the specified level.
+ *
+ * @param level - The log level to enable ('error', 'warn', 'info', 'http', 'debug')
+ */
+export function enableLogging(level: keyof typeof levels | 'silent' = 'info'): void {
+  logger.level = level;
+  logger.info(`Logging enabled at level: ${level}`);
+}
+
+/**
+ * Disable all logging.
+ */
+export function disableLogging(): void {
+  logger.level = 'silent';
+}
 
 export default logger;

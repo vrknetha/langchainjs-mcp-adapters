@@ -242,6 +242,8 @@ export class MultiServerMCPClient {
    * Check if a configuration is for a stdio connection
    */
   private isStdioConnection(config: any): boolean {
+    // When transport is missing, default to stdio if it has command and args
+    // OR when transport is explicitly set to 'stdio'
     return (
       (config.transport === 'stdio' || !config.transport) &&
       config.command &&
@@ -253,13 +255,15 @@ export class MultiServerMCPClient {
    * Check if a configuration is for an SSE connection
    */
   private isSSEConnection(config: any): boolean {
-    return (config.transport === 'sse' || !config.transport) && typeof config.url === 'string';
+    // Only consider it an SSE connection if transport is explicitly set to 'sse'
+    return config.transport === 'sse' && typeof config.url === 'string';
   }
 
   /**
    * Process stdio connection configuration
    */
   private processStdioConfig(serverName: string, config: any): StdioConnection {
+    // Always set transport to 'stdio' regardless of whether it was in the original config
     const stdioConfig: StdioConnection = {
       transport: 'stdio',
       command: config.command,

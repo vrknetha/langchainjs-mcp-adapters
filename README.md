@@ -93,21 +93,34 @@ if __name__ == "__main__":
 ### Client
 
 ```ts
-import { MultiServerMCPClient } from '@langchain/mcp-adapters';
+import { Client } from '@modelcontextprotocol/sdk/client/index.js';
+import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { ChatOpenAI } from '@langchain/openai';
 import { createReactAgent } from '@langchain/langgraph/prebuilt';
+import { loadMcpTools } from '@langchain/mcp-adapters';
 
 // Initialize the ChatOpenAI model
 const model = new ChatOpenAI({ modelName: 'gpt-4' });
 
-// Create client and connect to server using the adapter
-const client = new MultiServerMCPClient();
-await client.connectToServerViaStdio('math-server', 'python', ['math_server.py']);
+// Create transport for stdio connection
+const transport = new StdioClientTransport({
+  command: 'python',
+  args: ['math_server.py'],
+});
 
-// Get tools
-const tools = client.getTools();
+// Initialize the client
+const client = new Client({
+  name: 'math-client',
+  version: '1.0.0',
+});
 
 try {
+  // Connect to the transport
+  await client.connect(transport);
+
+  // Get tools
+  const tools = await loadMcpTools(client);
+
   // Create and run the agent
   const agent = createReactAgent({ llm: model, tools });
   const agentResponse = await agent.invoke({
@@ -117,7 +130,7 @@ try {
 } catch (e) {
   console.error(e);
 } finally {
-  // Clean up connections
+  // Clean up connection
   await client.close();
 }
 ```
@@ -231,6 +244,8 @@ const toolsByServer = client.getToolsByServer();
 await client.close();
 ```
 
+> **Note:** When using configuration files, the `transport` field is optional for stdio connections. If not specified, it defaults to 'stdio'. For SSE connections, the `transport` field must be explicitly set to 'sse'.
+
 ### With Authentication Headers
 
 ```typescript
@@ -254,7 +269,6 @@ Define your server connections in a JSON file:
 {
   "servers": {
     "math": {
-      "transport": "stdio",
       "command": "python",
       "args": ["./math_server.py"]
     },
@@ -269,6 +283,8 @@ Define your server connections in a JSON file:
   }
 }
 ```
+
+Note: For stdio connections, the `transport` field is optional. If not specified, it defaults to 'stdio'.
 
 Then load it in your code:
 
@@ -388,12 +404,30 @@ When using in browsers:
 
 ### Debug Logging
 
-Enable verbose logging to diagnose issues:
+Logging is disabled by default for optimal performance. Enable logging when needed for diagnostics:
+
+```typescript
+import { enableLogging, disableLogging } from '@langchain/mcp-adapters';
+
+// Enable logging at info level (default)
+enableLogging();
+
+// Or specify a specific level
+enableLogging('debug'); // Most verbose
+enableLogging('info'); // General information
+enableLogging('warn'); // Warnings only
+enableLogging('error'); // Errors only
+
+// Disable logging when done
+disableLogging();
+```
+
+You can also access the logger directly:
 
 ```typescript
 import { logger } from '@langchain/mcp-adapters';
 
-// Set logger level to debug
+// Advanced logging configuration
 logger.level = 'debug';
 ```
 
