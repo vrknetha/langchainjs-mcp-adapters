@@ -6,9 +6,8 @@
  */
 
 import { ChatOpenAI } from '@langchain/openai';
-import { StateGraph, END, START, MessagesAnnotation } from '@langchain/langgraph';
-import { ToolNode } from '@langchain/langgraph/prebuilt';
-import { HumanMessage, AIMessage, BaseMessage } from '@langchain/core/messages';
+import { createReactAgent } from '@langchain/langgraph/prebuilt';
+import { HumanMessage } from '@langchain/core/messages';
 import { StructuredToolInterface } from '@langchain/core/tools';
 import { z } from 'zod';
 import dotenv from 'dotenv';
@@ -17,7 +16,7 @@ import path from 'path';
 import logger from '../src/logger.js';
 
 // MCP client imports
-import { MultiServerMCPClient } from '../src/index.js';
+import { MultiServerMCPClient, enableLogging } from '../src/index.js';
 
 // Load environment variables from .env file
 dotenv.config();
@@ -59,13 +58,16 @@ function createMultipleServersConfigFile() {
 }
 
 /**
- * Example demonstrating how to use multiple MCP servers with LangGraph agent flows
+ * Example demonstrating how to use multiple MCP servers with React agent
  * This example creates and loads a configuration file with multiple servers
  */
 async function runExample() {
   let client: MultiServerMCPClient | null = null;
 
   try {
+    // Enable logging for better visibility
+    enableLogging('info');
+
     // Create the multiple servers configuration file
     createMultipleServersConfigFile();
 
@@ -89,54 +91,22 @@ async function runExample() {
       `Loaded ${mcpTools.length} MCP tools: ${mcpTools.map(tool => tool.name).join(', ')}`
     );
 
-    // Create an OpenAI model and bind the tools
+    // Create an OpenAI model
     const model = new ChatOpenAI({
       modelName: process.env.OPENAI_MODEL_NAME || 'gpt-4o',
       temperature: 0,
-    }).bindTools(mcpTools);
-
-    // Create a tool node for the LangGraph
-    const toolNode = new ToolNode(mcpTools);
-
-    // ================================================
-    // Create a LangGraph agent flow
-    // ================================================
-    console.log('\n=== CREATING LANGGRAPH AGENT FLOW ===');
-
-    // Define the function that calls the model
-    const llmNode = async (state: typeof MessagesAnnotation.State) => {
-      console.log('Calling LLM with messages:', state.messages.length);
-      const response = await model.invoke(state.messages);
-      return { messages: [response] };
-    };
-
-    // Create a new graph with MessagesAnnotation
-    const workflow = new StateGraph(MessagesAnnotation);
-
-    // Add the nodes to the graph
-    workflow.addNode('llm', llmNode);
-    workflow.addNode('tools', toolNode);
-
-    // Add edges - these define how nodes are connected
-    workflow.addEdge(START as any, 'llm' as any);
-    workflow.addEdge('tools' as any, 'llm' as any);
-
-    // Conditional routing to end or continue the tool loop
-    workflow.addConditionalEdges('llm' as any, state => {
-      const lastMessage = state.messages[state.messages.length - 1];
-      const aiMessage = lastMessage as AIMessage;
-
-      if (aiMessage.tool_calls && aiMessage.tool_calls.length > 0) {
-        console.log('Tool calls detected, routing to tools node');
-        return 'tools' as any;
-      }
-
-      console.log('No tool calls, ending the workflow');
-      return END as any;
     });
 
-    // Compile the graph
-    const app = workflow.compile();
+    // ================================================
+    // Create a React agent
+    // ================================================
+    console.log('\n=== CREATING REACT AGENT ===');
+
+    // Create the React agent
+    const agent = createReactAgent({
+      llm: model,
+      tools: mcpTools,
+    });
 
     // Define queries that will use both servers
     const queries = [
@@ -145,14 +115,14 @@ async function runExample() {
       'If I have 42 items and each costs $7.50, what is the total cost?',
     ];
 
-    // Test the LangGraph agent with the queries
-    console.log('\n=== RUNNING LANGGRAPH AGENT ===');
+    // Test the React agent with the queries
+    console.log('\n=== RUNNING REACT AGENT ===');
 
     for (const query of queries) {
       console.log(`\nQuery: ${query}`);
 
-      // Run the LangGraph agent with the query
-      const result = await app.invoke({
+      // Run the React agent with the query
+      const result = await agent.invoke({
         messages: [new HumanMessage(query)],
       });
 
